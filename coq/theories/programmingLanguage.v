@@ -140,6 +140,21 @@ intros x H.
 
       | Add l r=> add (interp_to_va_default VA store l) (interp_to_va_default VA store r)
     end.
+    
+    Fixpoint interp_to_va_crash (V : Set) (VA: ValueAlgebra V) (store:stringmap V) (e : Exp) : option V :=
+    match e with
+    | Lit n => Some (lit n)
+    | Var x => lookup x store
+    | Add l r =>
+        match interp_to_va_crash VA store l with
+        | None => None
+        | Some lv =>
+            match interp_to_va_crash VA store r with
+            | None => None
+            | Some rv => Some (add lv rv)
+            end
+        end
+    end.
 
     
   
@@ -195,8 +210,28 @@ Module Foas.
     | WfForall (x : string) (body : prop) :
     wfprop (union Γ (singleton x)) body ->
     wfprop Γ (Foas.Forall x body).
-    
+
   
+    
+  Fixpoint semant' (store : stringmap PL.Value) (foasprop : Foas.prop) : Prop :=
+    match foasprop with
+    | Foas.T => True
+    | Foas.F => False
+    | Foas.Implies p1 p2 => semant' store p1 -> semant' store p2
+    | Foas.And p1 p2 => semant' store p1 /\ semant' store p2
+    | Foas.Or p1 p2 => semant' store p1 \/ semant' store p2
+    | Foas.Forall x body =>
+        forall arg, semant' (insert x arg store) body
+    | Foas.Cmp cmp e1 e2 =>
+        match PL.interp_to_va_crash PL.value_valueAlgebra store e1,
+              PL.interp_to_va_crash PL.value_valueAlgebra store e2 with
+        | Some v1, Some v2 => semant_Relop cmp v1 v2
+        | _, _ => False
+        end
+    end.
+
+  Definition semant (foasprop : Foas.prop) : Prop :=
+    semant' empty foasprop.
   
   
   Inductive Contract := 
@@ -213,7 +248,15 @@ Check Foas.wfprop.
      ( Foas.wfprop (union (singleton forallVar) (singleton result)) post)
   end.
 
-
+  (*Implicit assumption that argName is equal to varName (it is the only variable)*)
+  Definition contract_semant (contract : Contract) : Prop :=
+  forall varName pre prog argName resultName (post : prop),
+    contract = MkContract varName pre prog argName resultName post ->
+    forall inp result,
+      semant' (insert argName inp empty) pre ->
+      (argName = varName) -> (* it is the only introduced logic variable *)
+      PL.evalProg prog inp result ->
+      semant' (insert resultName result (insert argName inp empty)) post.
 
   
     
@@ -225,19 +268,8 @@ Check Foas.wfprop.
     set_solver.
     Defined.
 
-    Fixpoint semant (store : stringmap PL.Value) (foasprop : Foas.prop) (proof : Foas.wfprop (dom store) foasprop ) : Prop:=
-    match proof with
-    |Foas.WfT _ => True
-    |Foas.WfF _ => False
-    |Foas.WfImplies H1 H2 => forall _ :  (semant store H1), (semant store H2)
-    |Foas.WfAnd H1 H2=> and (semant store H1) (semant store H2)
-    |Foas.WfOr H1 H2=> or (semant store H1) (semant store H2)
-    |@Foas.WfForall _ x body H => 
-    forall arg,  @semant  (insert x arg store) body (rew [fun x => Foas.wfprop x body] variable_introduction_domain store x arg  in H)  
-   |Foas.WfCmp cmp H1 H2 =>  (semant_Relop cmp) (PL.interp_to_va PL.value_valueAlgebra store H1) (PL.interp_to_va PL.value_valueAlgebra store H2)
-    end.
-   
     
+
 
     
 
@@ -1294,3 +1326,16 @@ Lemma wpWeakest : forall  (post : PL.Value->stringmap PL.Value->Phoas.prop PL.Va
 
 
 
+Section EndToEndSoundness.
+
+(* If the vc gen is semantically correct, then 
+
+
+*)
+
+Definition adequate (c : Phoas.Contract PL.Value) : 
+      Foas.semant (constraintGeneration.vc_hoas c) ->  Hoas.contract_semant (Hoas.phoas_to_hoas_contract c).
+  
+
+
+End EndToEndSoundness.
