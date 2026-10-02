@@ -1328,7 +1328,7 @@ Definition foas_adequate (c : Foas.Contract) :
       Foas.semant (constraintGeneration.vc_foas c) ->  Foas.contract_semant c.
 Proof.
 Admitted.
-  
+
 
 
 End EndToEndSoundness.
