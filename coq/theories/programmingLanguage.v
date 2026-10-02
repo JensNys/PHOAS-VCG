@@ -79,7 +79,7 @@ Inductive evalStm (store : stringmap Value) :  Stm  -> (Value * stringmap Value)
 Inductive evalProg : Prog->Value-> Value->Prop :=
   | EvalFunc: forall (functionName : string) (param : string) (body : Stm) input result o,  evalStm ({[ param := input ]}) body (result,o) -> evalProg (Fun functionName param body) input result.
 
-Inductive wfexp (Γ : stringset) : Exp -> Type :=
+Inductive wfexp (Γ : stringset) : Exp -> Prop :=
 | WfLit n :
   wfexp Γ (Lit n)
 | WfVar x :
@@ -119,15 +119,7 @@ intros x H.
 
 
 
-  Fixpoint interp_to_va (V : Set) (VA: ValueAlgebra V) (store:stringmap V) (e : Exp) (proof : wfexp (dom store) e) : V :=
-    match proof with
-      |WfLit _ n => lit n
-      
-      |WfVar contains_proof => match (contains_implies_lookup store contains_proof) with
-                                          | exist _ v H => v
-                                       end
-      | WfAdd H1 H2=> add (interp_to_va VA store H1) (interp_to_va VA store H2)
-    end.
+
 
   Fixpoint interp_to_va_default (V : Set) (VA: ValueAlgebra V) (store:stringmap V) (e : Exp)  : V :=
     match e with
@@ -187,7 +179,7 @@ Fixpoint semant_Relop (r:Relop) : PL.Value->PL.Value->Prop :=
     
     end.
 
-Definition WF (World : Type) (X : Set) := World-> X -> Type.
+Definition WF (World : Type) (X : Set) := World-> X -> Prop.
  
 Module Foas.
 
@@ -200,7 +192,7 @@ Module Foas.
   | Or (l : prop) (r : prop)
   | Forall (x : string) (p :  prop).
 
-  Inductive wfprop (Γ : stringset) : prop -> Type :=
+  Inductive wfprop (Γ : stringset) : prop -> Prop :=
     | WfT : wfprop Γ T
     | WfF: wfprop Γ F
     | WfImplies l r : wfprop Γ l->wfprop Γ r->wfprop Γ (Implies l r)
@@ -239,7 +231,7 @@ Module Foas.
 
   
 Check Foas.wfprop. 
-  Definition wfContract (c : Contract) : Type :=
+  Definition wfContract (c : Contract) : Prop :=
   match c with
   | MkContract forallVar pre prog arg result post =>
       (Foas.wfprop (singleton forallVar) pre )*
@@ -395,27 +387,48 @@ Definition WfStore (World : Type) (V : Set)  (WA :WF World V) : WF World (string
 
 
 
-Lemma wf_foas_to_phoas (World : Type) (V:Set) (VA: PL.ValueAlgebra V) (store : stringmap V)  (foasprop : Foas.prop) (wfFoas : Foas.wfprop (dom store) foasprop ) 
+Lemma wf_foas_to_phoas (World : Type) (V:Set) (VA: PL.ValueAlgebra V) (store : stringmap V)  (foasprop : Foas.prop) 
       (acc: relation World) (context : World) WA  
        (wfStore : WfStore WA context store ) (X : WF_VA VA WA) (Hweaken : Weakening  acc WA)
        : 
               @wfprop World acc V WA context (@foas_to_phoas V VA store foasprop).
 Proof.
 intros.
-dependent induction wfFoas. 
+dependent induction foasprop. 
 - constructor.
 - constructor.
--  simpl. constructor.
+-  simpl.
+  induction b.
+  + simpl. constructor.
+  ++ induction a.
+    +++ apply wf_lit.
+    +++ simpl. (*If x in store, then it will be in WfStore. Otherwise wf_lit*)
+  
+  ++
+
+ unfold PL.interp_to_va_default.
+
+ admit.
+(*constructor.
+
  + eapply IHwfFoas1; auto .
  + eapply IHwfFoas2; auto .
+
+*)
+
 -  simpl. constructor.
- + eapply IHwfFoas1; auto.
- + eapply IHwfFoas2; auto .
+ + eapply IHfoasprop1; auto.
+ + eapply IHfoasprop2; auto .
 -  simpl. constructor.
- + eapply IHwfFoas1; auto .
- + eapply IHwfFoas2; auto .
+ + eapply IHfoasprop1; auto.
+ + eapply IHfoasprop2; auto .
  -  simpl. constructor.
- + induction w.
+ + eapply IHfoasprop1; auto.
+ + eapply IHfoasprop2; auto .
+ -  simpl. constructor.
+ + 
+ intros.
+ induction w'.
   * simpl. apply wf_lit.
   * simpl. 
   
@@ -1371,7 +1384,7 @@ Lemma wpWeakest : forall  (post : PL.Value->stringmap PL.Value->Phoas.prop PL.Va
 
 
 Section binarySoundness.
-
+Definition Related (World : Type) (T1 : Set) := World-> X -> Type.
 
 
 
