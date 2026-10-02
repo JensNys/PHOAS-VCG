@@ -900,7 +900,20 @@ Lemma refl : forall w, acc w w.
   Definition Wfprop  (A: Set) (wfA : WF World A): WF World (Phoas.prop A) :=
     fun w p =>   (Phoas.wfprop acc wfA) w p.
 
+  Definition Wfoption  (A: Set) (wfA : WF World A): WF World (option A) :=
+    fun w ma =>  match (ma) with 
+                        | None => True
+                        | Some value => wfA w value
+                    end.
 
+
+
+
+
+
+              
+    
+    
 
 
   Definition WfPost ( V A: Set) (wfA :WF World A) (wfV :WF World V): WF World (A->stringmap V → Phoas.prop V) :=
@@ -984,6 +997,22 @@ Definition Wf_Wstore (V A:Set)  (wfV :WF World V) (wfA : WF World A) : WF World 
   - constructor.
   Qed.
 
+  Definition lookupWstore_safe (V : Set)  (varname : string) : Wstore V (option V) :=
+  fun post store => post (lookup varname store) store.
+
+
+Lemma wflookupWstore_safe  (w:World) (s : string)  : Wf_Wstore wfV (Wfoption wfV) w (lookupWstore_safe s).
+  unfold lookupWstore_safe.
+  unfold Wf_Wstore.
+  unfold WfFunc.
+  
+  intros post H store wfStore .
+  eapply H;eauto.
+
+  unfold Wfoption.
+  
+  destruct (store !! s) eqn:Heq ;eauto.
+  Qed.
 
   Definition insertWstore (V : Set)  (varname : string) (v:V) : Wstore V unit  :=
   fun post store => post tt (insert varname v store).
@@ -1009,7 +1038,12 @@ Definition Wf_Wstore (V A:Set)  (wfV :WF World V) (wfA : WF World A) : WF World 
   Definition deleteWstore (V : Set)  (varname : string) : Wstore V unit  :=
   fun post store => post tt (delete varname store).
   
-
+  Definition restoreWstore (V : Set)  (varname : string) (oldvalue : option V) : Wstore V unit  :=
+  match oldvalue with
+  | None => deleteWstore varname
+  | Some v => insertWstore varname v
+  end.
+  
 
   Fixpoint WfExpfp (wfString : WF World string) (w : World) (e : PL.Exp) : Type :=
   match e with
@@ -1114,13 +1148,14 @@ Qed.
   Fixpoint exec_stm (V:Set) (VA : PL.ValueAlgebra V) (stm : PL.Stm) : (Wstore V V):= 
   match stm with
   | PL.Expr e => exec_exp VA e
-  | PL.Let var e body => bind (exec_exp VA e)      (fun  x =>
-                         bind (insertWstore var x) (fun _ =>
-                         bind (exec_stm VA body)   (fun result =>
-                         bind (deleteWstore var)   (fun _ =>
+  | PL.Let var e body => bind (exec_exp VA e)          (fun  x =>
+                         bind (lookupWstore_safe var)  (fun  previous =>
+                         bind (insertWstore var x)     (fun _ =>
+                         bind (exec_stm VA body)       (fun result =>
+                         bind (restoreWstore var previous)       (fun _ =>
                          ret result
                          
-                         ))))
+                         )))))
   end.
 
 
@@ -1316,6 +1351,19 @@ Lemma wpWeakest : forall  (post : PL.Value->stringmap PL.Value->Phoas.prop PL.Va
   
   End hoasProof.
   
+
+
+Section binarySoundness.
+
+
+
+
+
+End binarySoundness.
+
+
+
+
 
 
 
