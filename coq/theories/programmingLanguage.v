@@ -248,12 +248,17 @@ Check Foas.wfprop.
      ( Foas.wfprop (union (singleton forallVar) (singleton result)) post)
   end.
 
-  (*Implicit assumption that argName is equal to varName (it is the only variable)*)
+
+  (*
+  
+  running the program with the right precondition will yield a result with the right postcondition.
+  The precondition can mention varName
+  *)
   Definition contract_semant (contract : Contract) : Prop :=
   forall varName pre prog argName resultName (post : prop),
     contract = MkContract varName pre prog argName resultName post ->
     forall inp result,
-      semant' (insert argName inp empty) pre ->
+      semant' (insert argName inp empty) pre -> 
       (argName = varName) -> (* it is the only introduced logic variable *)
       PL.evalProg prog inp result ->
       semant' (insert resultName result (insert argName inp empty)) post.
@@ -261,13 +266,7 @@ Check Foas.wfprop.
   
     
     
-    Lemma variable_introduction_domain :forall (V:Set) (store : stringmap V) x arg, (dom store ∪ {[x]}) = (dom (<[x:=arg]> store)) .
-    Proof.
-    intros.
-    rewrite dom_insert_L. 
-    set_solver.
-    Defined.
-
+  
     
 
 
@@ -1274,7 +1273,7 @@ Lemma wpWeakest : forall  (post : PL.Value->stringmap PL.Value->Phoas.prop PL.Va
 
 
 
-  Definition adequate (c : Phoas.Contract PL.Value) : Hoas.semant (constraintGeneration.vc_hoas c)->  Hoas.contract_semant (Hoas.phoas_to_hoas_contract c).
+  Definition adequate (c : Phoas.Contract PL.Value) : Hoas.semant (constraintGeneration.vc_hoas c) ->  Hoas.contract_semant (Hoas.phoas_to_hoas_contract c).
   Proof.
   
   unfold Hoas.contract_semant.
@@ -1315,12 +1314,6 @@ Lemma wpWeakest : forall  (post : PL.Value->stringmap PL.Value->Phoas.prop PL.Va
 
   Qed.
   
-  
-
-
-
-
-    
   End hoasProof.
   
 
@@ -1328,13 +1321,13 @@ Lemma wpWeakest : forall  (post : PL.Value->stringmap PL.Value->Phoas.prop PL.Va
 
 Section EndToEndSoundness.
 
-(* If the vc gen is semantically correct, then 
-
-
+(* 
+If the verification condition is true, running the program with the right precondition will yield a result with the right postcondition.
 *)
-
-Definition adequate (c : Phoas.Contract PL.Value) : 
-      Foas.semant (constraintGeneration.vc_hoas c) ->  Hoas.contract_semant (Hoas.phoas_to_hoas_contract c).
+Definition foas_adequate (c : Foas.Contract) : 
+      Foas.semant (constraintGeneration.vc_foas c) ->  Foas.contract_semant c.
+Proof.
+Admitted.
   
 
 
