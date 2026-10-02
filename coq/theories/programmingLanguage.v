@@ -1037,12 +1037,29 @@ Lemma wflookupWstore_safe  (w:World) (s : string)  : Wf_Wstore wfV (Wfoption wfV
 
   Definition deleteWstore (V : Set)  (varname : string) : Wstore V unit  :=
   fun post store => post tt (delete varname store).
+
+  Lemma wfdeleteWstore  (w:World) (varname : string)  : Wf_Wstore wfV wf_unit w (deleteWstore varname).
+  Admitted.
+  
+
+
+
   
   Definition restoreWstore (V : Set)  (varname : string) (oldvalue : option V) : Wstore V unit  :=
   match oldvalue with
   | None => deleteWstore varname
   | Some v => insertWstore varname v
   end.
+
+
+
+  Lemma wfrestoreWstore  (w:World) (varname : string) (opt_v:option V) (wf_opt : (Wfoption wfV) w opt_v) : Wf_Wstore wfV wf_unit w (restoreWstore varname opt_v).
+  Proof using A V VA World acc pre weaken wfA wfV.
+  destruct opt_v as [v|]; simpl in *. 
+  - apply wfinsertWstore.  exact wf_opt.
+  - apply wfdeleteWstore.
+  Qed.
+  
   
 
   Fixpoint WfExpfp (wfString : WF World string) (w : World) (e : PL.Exp) : Type :=
