@@ -851,7 +851,7 @@ Lemma refl : forall w, acc w w.
 
 
     
-  Definition Wfprop  (A: Set) (wfA : WF World A): WF World (Phoas.prop A) :=
+  Definition WfProp  (A: Set) (wfA : WF World A): WF World (Phoas.prop A) :=
     fun w p =>   (Phoas.wfprop acc wfA) w p.
 
   Definition Wfoption  (A: Set) (wfA : WF World A): WF World (option A) :=
@@ -861,7 +861,11 @@ Lemma refl : forall w, acc w w.
                     end.
 
 
-
+  Lemma Wfoption_weaken (w1 w2 : World) (o : option V) :
+    acc w1 w2 -> Wfoption wfV w1 o -> Wfoption wfV w2 o.
+  Proof using weaken.
+    destruct o as [v|]; unfold Wfoption; [apply Phoas.weaken | auto].
+  Qed.
 
 
 
@@ -871,11 +875,11 @@ Lemma refl : forall w, acc w w.
 
 
   Definition WfPost ( V A: Set) (wfA :WF World A) (wfV :WF World V): WF World (A->stringmap V → Phoas.prop V) :=
-   wfA  ↣ Phoas.WfStore wfV ↣ Wfprop wfV.
+   wfA  ↣ Phoas.WfStore wfV ↣ WfProp wfV.
 
 
 Definition Wf_Wstore (V A:Set)  (wfV :WF World V) (wfA : WF World A) : WF World (Wstore V A):=
-   (□ (WfPost wfA wfV)) ↣ (Phoas.WfStore wfV) ↣ (Wfprop wfV).
+   (□ (WfPost wfA wfV)) ↣ (Phoas.WfStore wfV) ↣ (WfProp wfV).
 
 
 
@@ -887,7 +891,7 @@ Definition Wf_Wstore (V A:Set)  (wfV :WF World V) (wfA : WF World A) : WF World 
 
 
   Lemma wfRet  (C : Set) (w:World) (c : C) (wfC : WF World C) (wf_c : wfC w c) : Wf_Wstore wfV wfC w (ret c).
-  repeat unfold Wf_Wstore,WfFunc,WfPost, Wfprop, Box.
+  repeat unfold Wf_Wstore,WfFunc,WfPost, WfProp, Box.
   intros post Hpost store Hstore.
   eapply Hpost;eauto.
   Qed.
@@ -920,7 +924,7 @@ Definition Wf_Wstore (V A:Set)  (wfV :WF World V) (wfA : WF World A) : WF World 
   unfold Wf_Wstore.
   unfold WfFunc.
   
-  repeat unfold Wf_Wstore,WfFunc,WfPost, Wfprop, Box, Wf_lift in *.
+  repeat unfold Wf_Wstore,WfFunc,WfPost, WfProp, Box, Wf_lift in *.
   intros  post H store wfStore .
 
    eauto. 
@@ -941,7 +945,7 @@ Definition Wf_Wstore (V A:Set)  (wfV :WF World V) (wfA : WF World A) : WF World 
   unfold lookupWstore.
   unfold Wf_Wstore.
   unfold WfFunc.
-  repeat unfold Wf_Wstore,WfFunc,WfPost, Wfprop', Box, Wf_lift in *.
+  repeat unfold Wf_Wstore,WfFunc,WfPost, WfProp', Box, Wf_lift in *.
   intros post H store wfStore .
   
   destruct (store !! s) eqn:Heq .
@@ -975,7 +979,7 @@ Lemma wflookupWstore_safe  (w:World) (s : string)  : Wf_Wstore wfV (Wfoption wfV
   fun w u => True.
 
   Lemma wfinsertWstore  (w:World) (varname : string) (v:V) (wf_v : wfV w v) :  (Wf_Wstore wfV wf_unit w (insertWstore varname v)).
-  unfold Wf_Wstore, WfFunc, WfPost, Box, insertWstore ,"↣" ,Wfprop.
+  unfold Wf_Wstore, WfFunc, WfPost, Box, insertWstore ,"↣" ,WfProp.
   intros post Hpost store wfStore.
   specialize (Hpost w (refl w) tt I).
   apply Hpost.
@@ -990,7 +994,7 @@ Lemma wflookupWstore_safe  (w:World) (s : string)  : Wf_Wstore wfV (Wfoption wfV
   fun post store => post tt (delete varname store).
 
   Lemma wfdeleteWstore  (w:World) (varname : string)  : Wf_Wstore wfV wf_unit w (deleteWstore varname).
-  unfold Wf_Wstore, WfFunc, WfPost, Box, insertWstore ,"↣" ,Wfprop.
+  unfold Wf_Wstore, WfFunc, WfPost, Box, insertWstore ,"↣" ,WfProp.
   intros post Hpost store wfStore.
   specialize (Hpost w (refl w) tt I).
   apply Hpost.
@@ -1013,7 +1017,7 @@ Lemma wflookupWstore_safe  (w:World) (s : string)  : Wf_Wstore wfV (Wfoption wfV
 
 
   Lemma wfrestoreWstore  (w:World) (varname : string) (opt_v:option V) (wf_opt : (Wfoption wfV) w opt_v) : Wf_Wstore wfV wf_unit w (restoreWstore varname opt_v).
-  Proof .
+ Proof using V World acc pre wfV.
   destruct opt_v as [v|]; simpl in *. 
   - apply wfinsertWstore.  exact wf_opt.
   - apply wfdeleteWstore.
@@ -1120,16 +1124,51 @@ Qed.
                          
                          )))))
   end.
-
+  Lemma wf_exec_stm  
+  (wfVA : Phoas.WF_VA VA wfV) (stm : PL.Stm)  
+    (w:World) 
+      : Wf_Wstore wfV wfV w (exec_stm VA stm).
+      Proof using V VA World acc pre weaken wfV.
+      revert w.
+      induction stm; intros w;simpl.
+      - apply wf_exec_exp;eauto.
+      - eapply wfBind.
+        -- apply wf_exec_exp;eauto.
+        -- intros w' Hacc x Hx.
+        eapply wfBind.
+        --- apply wflookupWstore_safe ;eauto.
+        --- intros w'' Hacc' previous Hprevious.
+        eapply wfBind.
+        ---- apply wfinsertWstore ;eauto. eapply Phoas.weaken ; [apply Hacc'| apply Hx].
+        ---- intros w''' Hacc'' _ _.
+        eapply wfBind.
+        ----- apply IHstm. 
+        ----- intros w'''' Hacc''' result Hresult.
+        eapply wfBind.
+        ------ apply wfrestoreWstore. eapply Wfoption_weaken ; [| exact Hprevious]. etransitivity; eauto.
+        ------ intros w''''' Hacc'''' _ _.
+        eapply wfRet.
+        eapply Phoas.weaken ; [apply Hacc''''| apply Hresult].
+        Qed.
 
 
 
   
   Definition wp (V:Set) (VA : PL.ValueAlgebra V) (stm : PL.Stm) (post : V -> stringmap V -> Phoas.prop V)  (initStore : stringmap V) : Phoas.prop V :=
   (exec_stm VA stm) post initStore.
+
+  Lemma wf_wp
+  (wfVA : Phoas.WF_VA VA wfV) (stm : PL.Stm)
+    (w:World) (post : V -> stringmap V -> Phoas.prop V)  (initStore : stringmap V)
+      (Wfpost : (□ (WfPost wfV wfV)) w post) (WfinitStore : Phoas.WfStore wfV w initStore)
+      : WfProp wfV w (wp VA stm post initStore).
+  Proof using pre weaken.
+    unfold wp.
+    eapply wf_exec_stm; eauto.
+  Qed.
+
   
-  
-  Definition weaken' (V:Set) (post : V->Phoas.prop V) : V->stringmap V->Phoas.prop V :=
+  Definition ignore_map (V:Set) (post : V->Phoas.prop V) : V->stringmap V->Phoas.prop V :=
   fun result _ => post result.
   
   Fixpoint vc (V:Set) (VA : PL.ValueAlgebra V) (contract : Phoas.Contract V) : Phoas.prop V :=
@@ -1137,7 +1176,7 @@ Qed.
     | Phoas.ForallC f => Phoas.Forall (fun v => vc VA (f v))
     | Phoas.HoareTriple pre prog arg post =>
       match prog with 
-        | PL.Fun functionName param body => (Phoas.Implies (pre) (wp VA body (weaken' post) ({[ param := arg ]})))
+        | PL.Fun functionName param body => (Phoas.Implies (pre) (wp VA body (ignore_map post) ({[ param := arg ]})))
       end
   end.
 
@@ -1234,7 +1273,7 @@ Lemma wpWeakest : forall  (post : PL.Value->stringmap PL.Value->Phoas.prop PL.Va
 
 
   Lemma wpPreconditionHoas : forall  (post : PL.Value->Hoas.prop) (stm : PL.Stm)  (inp : PL.Value) (arg : string) result fname,       
-  (Phoas.semant (constraintGeneration.wp PL.value_valueAlgebra stm (constraintGeneration.weaken' (Hoas.hoas_to_phoas ∘  post)) {[arg := inp]})) 
+  (Phoas.semant (constraintGeneration.wp PL.value_valueAlgebra stm (constraintGeneration.ignore_map (Hoas.hoas_to_phoas ∘  post)) {[arg := inp]})) 
   ->
   (PL.evalProg (PL.Fun fname arg stm ) inp result)-> Hoas.semant (post result ). Admitted. (*if pre is a precondition*)
   
@@ -1297,7 +1336,7 @@ Lemma wpWeakest : forall  (post : PL.Value->stringmap PL.Value->Phoas.prop PL.Va
   - intros. apply H in H1.
     unfold "∘".
     pose proof (Hoas.preserves_semantics (constraintGeneration.wp PL.value_valueAlgebra body
-              (constraintGeneration.weaken'
+              (constraintGeneration.ignore_map
                 (λ result : PL.Value,
                     Hoas.hoas_to_phoas (post inp result)))
               {[param := inp]})).
