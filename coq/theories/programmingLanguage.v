@@ -550,22 +550,22 @@ Theorem wf_foas_to_phoas_contract (World : Type) (V : Set) (acc : relation World
     (wfE' : WF_VA VA wfV)
     (weaken : Weakening acc wfV)
     :
-    Foas.wfContract c ->
+    
     @wfContract World V acc wfV w
       (foas_contract_to_phoas_contract VA env c).
 Proof.
-  intros Hwf.
+  
   destruct c as [forallVar pre prog arg result post].
-  (* unfold the FOAS well-formedness *)
-  destruct Hwf as [[[Hwfpre  Harg] Hresultname] Hwfpost].
+  
+  
   (* the translation wraps in ForallC *)
   simpl. apply WfForallC.
   intros v w' Hacc Hwfv.
   (* now prove WfHoareTriple *)
   apply WfHoareTriple.
-  - (* pre well-formed: use foas_to_phoas_wfprop *)
+  - 
     eapply Phoas.wf_foas_to_phoas  ;eauto.
-    rewrite Harg.
+    
      
      intros s v' Hlookup.
       rewrite lookup_singleton_Some in Hlookup.
@@ -574,26 +574,20 @@ Proof.
 
   - 
     exact Hwfv.
-  - (* post well-formed: similar to pre, larger domain *)
+  - 
     intros result_v w'' Hacc' Hwfresult.
     eapply Phoas.wf_foas_to_phoas  ;eauto.
-    
-      intros s v' Hlookup.
-
-destruct (String.eq_dec s forallVar) as [Hs | Hs].
--- subst s.
-rewrite lookup_union_Some in Hlookup. **
-
-  admit. 
-  **
-
-
- apply map_disjoint_singleton_l_2.
-rewrite lookup_singleton_ne; done. 
-
---
-
-Admitted.
+    unfold WfStore.
+    intros s v' Hlookup.
+    (* a lookup in the union comes from either the left or the right singleton *)
+    apply lookup_union_Some_raw in Hlookup.
+    destruct Hlookup as [Hl | [_ Hl]];
+      apply lookup_singleton_Some in Hl; destruct Hl as [_ <-].
+    + (* the forall variable: well-formed in w', weaken to w'' *)
+      exact (Phoas.weaken w' w'' v Hacc' Hwfv).
+    + (* the result variable *)
+      exact Hwfresult.
+Qed.
   
 
 
@@ -1199,10 +1193,12 @@ Print Instances PreOrder.
 
 
 
-Theorem wf_vc_foas : forall (c : Foas.Contract), Foas.wfContract c -> Foas.wfprop empty (constraintGeneration.vc_foas c).
-  intros c Hwf.
+
+
+Theorem wf_vc_foas : forall (c : Foas.Contract), Foas.wfprop empty (constraintGeneration.vc_foas c).
+  intros c.
   destruct c.
-  destruct Hwf as [[[Hwfpre Hwfprog] Harg] Hwfpost].
+  
   unfold constraintGeneration.vc_foas.
   eapply Phoas.wf_phoas_to_foas. (*phoas to foas*)
   - apply stringset.
@@ -1213,14 +1209,10 @@ Theorem wf_vc_foas : forall (c : Foas.Contract), Foas.wfContract c -> Foas.wfpro
     * eapply Phoas.wf_foas_to_phoas_contract. (*foas to phoas contract*)
         + apply Phoas.WF_VA_exp.
         + apply Phoas.weakening_wfe.
-        + constructor; eauto.
 Qed.
 
 
-Lemma weakening : forall (V:Set) (Γ:stringset) Γ' (p:Phoas.prop V) (wfV : stringset->V->Prop) acc,  Phoas.wfprop acc wfV Γ p ->  Γ ⊆ Γ' -> Phoas.wfprop acc wfV Γ' p.
-Proof.
 
-Admitted.
 
 
 
