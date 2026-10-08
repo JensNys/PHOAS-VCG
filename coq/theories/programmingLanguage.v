@@ -974,26 +974,31 @@ Lemma wflookupWstore_safe  (w:World) (s : string)  : Wf_Wstore wfV (Wfoption wfV
   Definition wf_unit : WF World unit :=
   fun w u => True.
 
-  Lemma wfinsertWstore  (w:World) (varname : string) (v:V) (wf_v : wfV w v) : Wf_Wstore wfV wf_unit w (insertWstore varname v).
-  unfold insertWstore.
-  unfold Wf_Wstore.
-  unfold WfFunc.
-  repeat unfold Wf_Wstore,WfFunc,WfPost, Wfprop', Box, Wf_lift in *.
-  intros post H store wfStore .
-  eapply H;eauto.
-  - unfold wf_unit. reflexivity.
-  - admit.
-   (*specialize (H () I store wfStore).*)
+  Lemma wfinsertWstore  (w:World) (varname : string) (v:V) (wf_v : wfV w v) :  (Wf_Wstore wfV wf_unit w (insertWstore varname v)).
+  unfold Wf_Wstore, WfFunc, WfPost, Box, insertWstore ,"↣" ,Wfprop.
+  intros post Hpost store wfStore.
+  specialize (Hpost w (refl w) tt I).
+  apply Hpost.
+  intros s v' Hlookup.
+  destruct (decide (s = varname)) as [-> | Hne].
+  - rewrite lookup_insert_eq in Hlookup. injection Hlookup. intro veq. rewrite  <- veq. exact wf_v.
+  -  rewrite lookup_insert_ne in Hlookup;eauto.
+  Qed.
 
-
-  Admitted.
- 
 
   Definition deleteWstore (V : Set)  (varname : string) : Wstore V unit  :=
   fun post store => post tt (delete varname store).
 
   Lemma wfdeleteWstore  (w:World) (varname : string)  : Wf_Wstore wfV wf_unit w (deleteWstore varname).
-  Admitted.
+  unfold Wf_Wstore, WfFunc, WfPost, Box, insertWstore ,"↣" ,Wfprop.
+  intros post Hpost store wfStore.
+  specialize (Hpost w (refl w) tt I).
+  apply Hpost.
+  intros s v' Hlookup.
+  destruct (decide (s = varname)) as [-> | Hne].
+  - rewrite lookup_delete_eq in Hlookup. discriminate. 
+  -  rewrite lookup_delete_ne in Hlookup;eauto.
+  Qed.
   
 
 
@@ -1008,7 +1013,7 @@ Lemma wflookupWstore_safe  (w:World) (s : string)  : Wf_Wstore wfV (Wfoption wfV
 
 
   Lemma wfrestoreWstore  (w:World) (varname : string) (opt_v:option V) (wf_opt : (Wfoption wfV) w opt_v) : Wf_Wstore wfV wf_unit w (restoreWstore varname opt_v).
-  Proof using A V VA World acc pre weaken wfA wfV.
+  Proof .
   destruct opt_v as [v|]; simpl in *. 
   - apply wfinsertWstore.  exact wf_opt.
   - apply wfdeleteWstore.
@@ -1040,6 +1045,39 @@ Lemma wflookupWstore_safe  (w:World) (s : string)  : Wf_Wstore wfV (Wfoption wfV
   end.
 
 
+
+  Lemma wf_exec_exp  
+  (wfVA : Phoas.WF_VA VA wfV) (e : PL.Exp)  
+    (w:World) 
+      : Wf_Wstore wfV wfV w (exec_exp VA e).
+  Proof using pre weaken.
+  
+   revert w.
+   induction e;
+   intros w post Hpost store wfStore .
+
+    (*Lit*)
+   - simpl. eapply Hpost;eauto.  
+    apply Phoas.wf_lit.
+    (*Var*)
+   - simpl. eapply wflookupWstore; eauto.
+   (*Add*)
+   - simpl.  eapply wfBind;eauto. 
+    intros w' Hacc x Hx.
+    eapply wfBind with (wfC := wfV).
+    -- apply IHe2.
+    --  intros w'' Hacc' x' Hx'.
+        eapply wfRet.
+        apply Phoas.wf_add.
+        --- eapply (Phoas.weaken w' w'' x Hacc' Hx).
+        --- eauto.
+   Qed.
+   
+     
+     
+     
+     
+
   Definition wf_string_store  {V:Set} (store: stringmap V) (wfV : WF World V) : WF World string :=
   fun w s => forall v,  store !! s = Some v -> wfV w v.
 
@@ -1063,53 +1101,7 @@ Proof using weaken.
   - eapply Hs. exact Hlookup.
 Qed.
 
-  Lemma wf_exec_exp  
-  (like_wfV : Phoas.WF_VA VA wfV) (e : PL.Exp)  
-    (w:World)   (varname : string)
-      : Wf_Wstore wfV wfV w (exec_exp VA e).
-  Proof.
   
-   repeat unfold Wf_Wstore,WfFunc,WfPost, Wfprop, Box, Wf_lift in *.
-
-      induction e;
-   intros post H store wfStore .
-
-    (*Lit*)
-   - simpl. eapply H;eauto.  
-    apply Phoas.wf_lit.
-    (*Var*)
-   - simpl. eapply wflookupWstore;eauto.
-   (*Add*)
-   - simpl.  eapply wfBind ; eauto.
-   
-   repeat unfold WfFunc,WfPost, Wfprop, Box, Wf_lift .
-     intros. 
-     eapply wfBind;eauto.
-     ++ simpl in *. 
-     
-     
-     
-     repeat unfold Wf_Wstore,WfFunc,WfPost, Wfprop, Box, Wf_lift in *.
-     intros.
-     simpl.
-     eauto.
-
-     (*
-     
-     apply IHe2; eauto.
-     unfold WfExp in wfe.
-     simpl in wfe. apply wfe.
-     *)
-     
-     admit.
-     
-     
-     ++ repeat unfold Wf_Wstore,WfFunc,WfPost, Wfprop, Box, Wf_lift in *.
-        intros.
-        eapply wfRet;eauto.
-        apply Phoas.wf_add;eauto.
-        eapply weaken;eauto.
-  Admitted.
 
 
   
