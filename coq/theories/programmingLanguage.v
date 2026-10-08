@@ -1181,11 +1181,34 @@ Qed.
   end.
 
   Lemma wf_vc
-    (c : Phoas.Contract V) (w : World): 
+    (wfVA : Phoas.WF_VA VA wfV) (c : Phoas.Contract V) (w : World): 
     @Phoas.wfContract World V acc wfV  w c ->
     Phoas.wfprop acc wfV w (vc VA c).
-    
-    Admitted.
+    Proof using pre weaken.
+    revert w.
+    induction c as [f IH | pre' prog arg post]; intros w HwfContract; simpl.
+    (* ForallC *)
+    - inversion HwfContract as [? Hf |]; subst.
+      constructor.
+      intros v w' Hacc Hv.
+      apply IH.
+      apply Hf;eauto. 
+    (* HoareTriple *)
+    - inversion HwfContract as [| ? ? ? ? Hpre Harg Hpost]; subst.
+      destruct prog as [functionName param body].
+      constructor.
+      + exact Hpre.
+      + apply wf_wp; auto.
+        * 
+          intros w' Hacc result Hresult store Hstore.
+          unfold ignore_map.
+          apply Hpost; eauto.
+        * 
+          intros s v Hlookup.
+          apply lookup_singleton_Some in Hlookup.
+          destruct Hlookup as [_ <-].
+          exact Harg.
+    Qed.
 
 
   Definition vc_hoas  (c : Phoas.Contract PL.Value) : Hoas.prop :=
@@ -1196,10 +1219,6 @@ Qed.
   Phoas.phoas_to_foas ∅ (vc (PL.expression_valueAlgebra) (Phoas.foas_contract_to_phoas_contract PL.expression_valueAlgebra  ∅ c)).
 
 
-Lemma wf_exec_exp' 
-  (like_wfV : Phoas.WF_VA VA wfV) (e : PL.Exp)  
-    (w:World)   (varname : string)
-      : Wf_Wstore wfV wfV w (exec_exp VA e). Admitted.
 
 
 
@@ -1225,13 +1244,10 @@ Theorem wf_vc_foas : forall (c : Foas.Contract), Foas.wfprop empty (constraintGe
   
   unfold constraintGeneration.vc_foas.
   eapply Phoas.wf_phoas_to_foas. (*phoas to foas*)
-  - eapply constraintGeneration.wf_vc . (*vc*)
-      * apply set_subseteq_preorder. 
-      * apply Phoas.wfe.
-      * apply Phoas.weakening_wfe.
-    * eapply Phoas.wf_foas_to_phoas_contract. (*foas to phoas contract*)
-        + apply Phoas.WF_VA_exp.
-        + apply Phoas.weakening_wfe.
+  - (*vc*)
+    eapply (constraintGeneration.wf_vc set_subseteq_preorder Phoas.weakening_wfe Phoas.WF_VA_exp).
+    (*foas to phoas contract*)
+    apply (Phoas.wf_foas_to_phoas_contract _ _ _ Phoas.WF_VA_exp Phoas.weakening_wfe).
 Qed.
 
 
