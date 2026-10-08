@@ -294,7 +294,7 @@ Inductive prop (A : Set) : Set :=
     Variable (A : Set).
     Variable (WA :WF World A).
     Variable (weaken : Weakening Acc WA).
-    Inductive wfprop (w : World) : prop A -> Type :=
+    Inductive wfprop (w : World) : prop A -> Prop :=
     | WfT : wfprop w (T A)
     | WfF : wfprop w (F A)
     | WfImplies {l r} : wfprop w l -> wfprop w r -> wfprop w (Implies l r)
@@ -386,6 +386,19 @@ Definition WfStore (World : Type) (V : Set)  (WA :WF World V) : WF World (string
 
 
 
+Lemma wf_interp_to_va_default (World : Type) (V:Set) (VA: PL.ValueAlgebra V) (store : stringmap V) (e : PL.Exp)
+      (context : World) WA
+       (wfStore : WfStore WA context store ) (X : WF_VA VA WA) :
+              WA context (PL.interp_to_va_default VA store e).
+Proof.
+induction e; simpl.
+- apply wf_lit.
+- (* if x is in the store, the store is well-formed; otherwise we default to lit 0 *)
+  destruct (store !! x) as [v|] eqn:Hlookup.
+  + eapply wfStore. exact Hlookup.
+  + apply wf_lit.
+- apply wf_add; auto.
+Qed.
 
 Lemma wf_foas_to_phoas (World : Type) (V:Set) (VA: PL.ValueAlgebra V) (store : stringmap V)  (foasprop : Foas.prop) 
       (acc: relation World) (context : World) WA  
@@ -393,80 +406,24 @@ Lemma wf_foas_to_phoas (World : Type) (V:Set) (VA: PL.ValueAlgebra V) (store : s
        : 
               @wfprop World acc V WA context (@foas_to_phoas V VA store foasprop).
 Proof.
-intros.
-dependent induction foasprop. 
+revert store context wfStore.
+induction foasprop; intros store context wfStore; simpl.
 - constructor.
 - constructor.
--  simpl.
-  induction b.
-  + simpl. constructor.
-  ++ induction a.
-    +++ apply wf_lit.
-    +++ simpl. (*If x in store, then it will be in WfStore. Otherwise wf_lit*)
-  
-  ++
-
- unfold PL.interp_to_va_default.
-
- admit.
-(*constructor.
-
- + eapply IHwfFoas1; auto .
- + eapply IHwfFoas2; auto .
-
-*)
-
--  simpl. constructor.
- + eapply IHfoasprop1; auto.
- + eapply IHfoasprop2; auto .
--  simpl. constructor.
- + eapply IHfoasprop1; auto.
- + eapply IHfoasprop2; auto .
- -  simpl. constructor.
- + eapply IHfoasprop1; auto.
- + eapply IHfoasprop2; auto .
- -  simpl. constructor.
- + 
- intros.
- induction w'.
-  * simpl. apply wf_lit.
-  * simpl. 
-  
-  eapply (wfStore x). Check   PL.contains_implies_lookup.
-  destruct (PL.contains_implies_lookup store e) as [v Hv]. rewrite Hv. reflexivity. 
-  
-  
-  * simpl. apply wf_add; auto.
- + induction w0.
-  * simpl. apply wf_lit.
-  * simpl.  eapply (wfStore x). destruct (PL.contains_implies_lookup store e) as [v Hv]. rewrite Hv. reflexivity.
-  
-  * simpl. apply wf_add; auto.
- - simpl. constructor. intros. eapply  IHwfFoas;eauto.
-  + apply variable_introduction_domain.
-  + simpl. 
-  
-  generalize (variable_introduction_domain store x a). 
-  unfold WfStore.
-  intros H0 s v Hlookup.
-  
- 
-
+- constructor; eapply wf_interp_to_va_default; eauto.
+- constructor; auto.
+- constructor; auto.
+- constructor; auto.
+- constructor. intros a w' Hacc Ha.
+  apply IHfoasprop.
+  intros s v Hlookup.
   destruct (decide (s = x)) as [-> | Hne].
-* (* s = x, so lookup returns a *)
-  Check lookup_insert.
-  rewrite lookup_insert_eq in Hlookup.
-  injection Hlookup as <-.
-  apply X0.
-* rewrite lookup_insert_ne in Hlookup.
-** unfold WfStore in wfStore.
-  specialize (wfStore s v).
-  apply wfStore in Hlookup.
-  apply (weaken context w');auto.
-
-
-
-** symmetry. exact Hne.
+  + rewrite lookup_insert_eq in Hlookup.
+    injection Hlookup as <-.
+    exact Ha.
+  + rewrite lookup_insert_ne in Hlookup by congruence.
+    apply (weaken context w'); auto.
+    eapply wfStore. exact Hlookup.
 Qed.
 
 
@@ -537,7 +494,7 @@ Qed.
     - constructor; auto.
     - constructor; auto.
     - constructor.
-      apply X.
+      apply H0.
       + set_solver.
       + constructor.
       set_solver.
@@ -608,8 +565,7 @@ Proof.
   apply WfHoareTriple.
   - (* pre well-formed: use foas_to_phoas_wfprop *)
     eapply Phoas.wf_foas_to_phoas  ;eauto.
-    + rewrite dom_singleton_L. exact Hwfpre.
-    + rewrite Harg.
+    rewrite Harg.
      
      intros s v' Hlookup.
       rewrite lookup_singleton_Some in Hlookup.
@@ -621,9 +577,7 @@ Proof.
   - (* post well-formed: similar to pre, larger domain *)
     intros result_v w'' Hacc' Hwfresult.
     eapply Phoas.wf_foas_to_phoas  ;eauto.
-    + rewrite dom_union_L, !dom_singleton_L.
-    exact Hwfpost.
-    + 
+    
       intros s v' Hlookup.
 
 destruct (String.eq_dec s forallVar) as [Hs | Hs].
@@ -665,10 +619,10 @@ Admitted.
   
 
   Lemma wf_add_expR : forall Γ v1 v2, wfr Γ v1 -> wfr Γ v2 -> wfr Γ (PL.add v1 v2).
-  intros.
+  intros Γ v1 v2 H1 H2.
   constructor.
-  - eapply X.
-  - eapply X0.
+  - eapply H1.
+  - eapply H2.
   Qed. 
 
   Lemma wf_lit_exp: forall Γ n, wfe Γ (PL.Lit n).
@@ -680,10 +634,10 @@ Admitted.
   
 
   Lemma wf_add_exp : forall Γ v1 v2, wfe Γ v1 -> wfe Γ v2 -> wfe Γ (PL.Add v1 v2).
-  intros.
+  intros Γ v1 v2 H1 H2.
   constructor.
-  - eapply X.
-  - eapply X0.
+  - eapply H1.
+  - eapply H2.
   Qed. 
  
   
@@ -702,12 +656,12 @@ Admitted.
   Instance weakening_wfe : Weakening subseteq wfe.
   Proof.
   constructor.
-  intros.
+  intros Γ Γ' v Hsub Hwf.
   unfold wfe in *.
   induction v.
   - constructor.
-  - constructor. apply H.  inversion X. apply H1.
-  - constructor; inversion X;auto. 
+  - constructor. apply Hsub.  inversion Hwf. apply H0.
+  - constructor; inversion Hwf;auto. 
 
   
   Qed.
@@ -947,16 +901,16 @@ Definition Wf_Wstore (V A:Set)  (wfV :WF World V) (wfA : WF World A) : WF World 
 
   Lemma wfRet  (C : Set) (w:World) (c : C) (wfC : WF World C) (wf_c : wfC w c) : Wf_Wstore wfV wfC w (ret c).
   repeat unfold Wf_Wstore,WfFunc,WfPost, Wfprop, Box.
-  intros.
-  eapply X;eauto.
+  intros post Hpost store Hstore.
+  eapply Hpost;eauto.
   Qed.
 
 
 
   Lemma S   : forall (p : WF World V) (w : World) (v : V), Box wfV w v -> wfV w v.
   Proof using pre.
-  intros.
-  apply X.
+  intros p w v Hbox.
+  apply Hbox.
   reflexivity.
   Qed.
 
@@ -964,8 +918,8 @@ Definition Wf_Wstore (V A:Set)  (wfV :WF World V) (wfA : WF World A) : WF World 
   Proof using pre.
   unfold Box in *.
   
-  intros.
-  apply X.
+  intros p w v Hbox w' Hw' w'' Hw''.
+  apply Hbox.
   etransitivity ;eauto.
   Qed.
 
@@ -1075,11 +1029,11 @@ Lemma wflookupWstore_safe  (w:World) (s : string)  : Wf_Wstore wfV (Wfoption wfV
   
   
 
-  Fixpoint WfExpfp (wfString : WF World string) (w : World) (e : PL.Exp) : Type :=
+  Fixpoint WfExpfp (wfString : WF World string) (w : World) (e : PL.Exp) : Prop :=
   match e with
   | PL.Lit n     => True
   | PL.Var x     => wfString w x
-  | PL.Add e1 e2 => prod (WfExpfp wfString w e1) (WfExpfp wfString w e2)
+  | PL.Add e1 e2 => (WfExpfp wfString w e1) /\ (WfExpfp wfString w e2)
   end.
 
   Definition WfExp (wfString : WF World string) : WF World PL.Exp :=
@@ -1102,7 +1056,7 @@ Lemma wflookupWstore_safe  (w:World) (s : string)  : Wf_Wstore wfV (Wfoption wfV
   Definition wf_string_store  {V:Set} (store: stringmap V) (wfV : WF World V) : WF World string :=
   fun w s => forall v,  store !! s = Some v -> wfV w v.
 
-  Fixpoint WfStmfp (wfString : WF World string) (w : World) (p : PL.Stm) : Type :=
+  Fixpoint WfStmfp (wfString : WF World string) (w : World) (p : PL.Stm) : Prop :=
   match p with
   | PL.Expr e => WfExpfp wfString w e
   | PL.Let var e body => forall w', acc w w' -> wfString w' var -> WfStmfp wfString w' body 
@@ -1246,9 +1200,9 @@ Print Instances PreOrder.
 
 
 Theorem wf_vc_foas : forall (c : Foas.Contract), Foas.wfContract c -> Foas.wfprop empty (constraintGeneration.vc_foas c).
-  intros.
+  intros c Hwf.
   destruct c.
-  destruct X as [[[Hwfpre Hwfprog] Harg] Hwfpost].
+  destruct Hwf as [[[Hwfpre Hwfprog] Harg] Hwfpost].
   unfold constraintGeneration.vc_foas.
   eapply Phoas.wf_phoas_to_foas. (*phoas to foas*)
   - apply stringset.
@@ -1263,7 +1217,7 @@ Theorem wf_vc_foas : forall (c : Foas.Contract), Foas.wfContract c -> Foas.wfpro
 Qed.
 
 
-Lemma weakening : forall (V:Set) (Γ:stringset) Γ' (p:Phoas.prop V) (wfV : stringset->V->Type) acc,  Phoas.wfprop acc wfV Γ p ->  Γ ⊆ Γ' -> Phoas.wfprop acc wfV Γ' p.
+Lemma weakening : forall (V:Set) (Γ:stringset) Γ' (p:Phoas.prop V) (wfV : stringset->V->Prop) acc,  Phoas.wfprop acc wfV Γ p ->  Γ ⊆ Γ' -> Phoas.wfprop acc wfV Γ' p.
 Proof.
 
 Admitted.
@@ -1275,7 +1229,7 @@ Lemma vc_well_formed: forall (V:Set) (VA : PL.ValueAlgebra V) (World:Type) (Γ:W
 Proof.
 intros.
 induction c.
-- simpl. constructor. intros. pose proof (X a).
+- simpl. constructor. intros. pose proof (H a).
 admit.
 -   admit.
 Admitted.
@@ -1384,7 +1338,7 @@ Lemma wpWeakest : forall  (post : PL.Value->stringmap PL.Value->Phoas.prop PL.Va
 
 
 Section binarySoundness.
-Definition Related (World : Type) (T1 : Set) := World-> X -> Type.
+Definition Related (World : Type) (T1 : Set) := World-> T1 -> Type.
 
 
 
