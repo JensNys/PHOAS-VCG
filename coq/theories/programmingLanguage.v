@@ -483,7 +483,7 @@ Qed.
 
 
   
-  Lemma wf_phoas_to_foas (World : Type) (Γ : stringset) (p : Phoas.prop (PL.Exp)) 
+  Lemma wf_phoas_to_foas  (Γ : stringset) (p : Phoas.prop (PL.Exp)) 
   (wfp : @Phoas.wfprop stringset subseteq (PL.Exp) wfe Γ p) :
     Foas.wfprop Γ (phoas_to_foas Γ p).
   Proof. 
@@ -660,19 +660,12 @@ Qed.
   
   Qed.
 
-  
+
      Definition simplePropInverse : phoas_to_foas ∅ (@foas_to_phoas ( PL.Exp) PL.expression_valueAlgebra (empty : stringmap (PL.Exp)) simpleProp ) = simpleProp.
      Proof.
-     vm_compute. reflexivity.  (* simpl. this causes stack overflow*)
-Admitted.
-
-
      
-     
-     
-
-
-     
+     vm_compute. reflexivity.  
+     Admitted.
      Set Printing Implicit.
 
      
@@ -1201,7 +1194,6 @@ Theorem wf_vc_foas : forall (c : Foas.Contract), Foas.wfprop empty (constraintGe
   
   unfold constraintGeneration.vc_foas.
   eapply Phoas.wf_phoas_to_foas. (*phoas to foas*)
-  - apply stringset.
   - eapply constraintGeneration.wf_vc . (*vc*)
       * apply set_subseteq_preorder. 
       * apply Phoas.wfe.
