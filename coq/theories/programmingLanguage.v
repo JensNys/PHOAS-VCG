@@ -179,7 +179,7 @@ Fixpoint semant_Relop (r:Relop) : PL.Value->PL.Value->Prop :=
     
     end.
 
-Definition WF (World : Type) (X : Set) := World-> X -> Prop.
+Definition WF (World : Set) (X : Set) := World-> X -> Prop.
  
 Module Foas.
 
@@ -284,12 +284,12 @@ Inductive prop (A : Set) : Set :=
   | Forall (f : A ->  prop A)
   | Cmp (r:Relop) (a : A) (b:A).
   
-   Class Weakening (V:Set)  (World: Type) (Acc: relation World) (WA: WF World V) := {
+   Class Weakening (V:Set)  (World: Set) (Acc: relation World) (WA: WF World V) := {
     weaken : forall (Γ Γ' : World) (v:V), Acc Γ Γ' -> WA Γ v -> WA Γ' v
 }.
   Section WithA.
 
-    Context {World : Type} (Acc : relation World) {pre : PreOrder Acc}.
+    Context {World : Set} (Acc : relation World) {pre : PreOrder Acc}.
 
     Variable (A : Set).
     Variable (WA :WF World A).
@@ -325,7 +325,7 @@ Inductive prop (A : Set) : Set :=
      | ForallC (f: V -> Contract V)
      | HoareTriple (pre : prop V) (program : PL.Prog) (arg:V) (post :V -> prop V).
   
-  Inductive wfContract (World : Type) (V:Set) {acc : relation World} (wfV : WF World V) (w:World) :  Contract V -> Prop :=
+  Inductive wfContract (World : Set) (V:Set) {acc : relation World} (wfV : WF World V) (w:World) :  Contract V -> Prop :=
   | WfForallC {f : V -> Contract V} :
         (forall (v : V) w', acc w w' -> wfV w' v -> wfContract  wfV w' (f v)) ->
         wfContract  wfV w (ForallC f)
@@ -364,7 +364,7 @@ Inductive prop (A : Set) : Set :=
      Check foas_to_phoas.
 
 
-Class WF_VA (World : Type) (V:Set) (VA: PL.ValueAlgebra V) 
+Class WF_VA (World : Set) (V:Set) (VA: PL.ValueAlgebra V) 
 (WA: WF World V)  := {
     wf_lit : forall Γ n, WA Γ (PL.lit n);
     wf_add : forall Γ v1 v2, WA Γ v1 -> WA Γ v2 -> WA Γ (PL.add v1 v2);
@@ -374,7 +374,7 @@ Class WF_VA (World : Type) (V:Set) (VA: PL.ValueAlgebra V)
 
 
 
-Definition WfStore (World : Type) (V : Set)  (WA :WF World V) : WF World (stringmap V) :=
+Definition WfStore (World : Set) (V : Set)  (WA :WF World V) : WF World (stringmap V) :=
     fun (w : World) (store : stringmap V)
      =>
     forall s v, (store !! s = Some v) -> (WA w v ).
@@ -386,7 +386,7 @@ Definition WfStore (World : Type) (V : Set)  (WA :WF World V) : WF World (string
 
 
 
-Lemma wf_interp_to_va_default (World : Type) (V:Set) (VA: PL.ValueAlgebra V) (store : stringmap V) (e : PL.Exp)
+Lemma wf_interp_to_va_default (World : Set) (V:Set) (VA: PL.ValueAlgebra V) (store : stringmap V) (e : PL.Exp)
       (context : World) WA
        (wfStore : WfStore WA context store ) (X : WF_VA VA WA) :
               WA context (PL.interp_to_va_default VA store e).
@@ -400,7 +400,7 @@ induction e; simpl.
 - apply wf_add; auto.
 Qed.
 
-Lemma wf_foas_to_phoas (World : Type) (V:Set) (VA: PL.ValueAlgebra V) (store : stringmap V)  (foasprop : Foas.prop) 
+Lemma wf_foas_to_phoas (World : Set) (V:Set) (VA: PL.ValueAlgebra V) (store : stringmap V)  (foasprop : Foas.prop) 
       (acc: relation World) (context : World) WA  
        (wfStore : WfStore WA context store ) (X : WF_VA VA WA) (Hweaken : Weakening  acc WA)
        : 
@@ -428,7 +428,7 @@ Qed.
 
 
 
-Lemma wf_foas_to_phoas2 (World : Type) (V:Set) (VA: PL.ValueAlgebra V) (store : stringmap V)  (foasprop : Foas.prop) (wfFoas : Foas.wfprop (dom store) foasprop ) :
+Lemma wf_foas_to_phoas2 (World : Set) (V:Set) (VA: PL.ValueAlgebra V) (store : stringmap V)  (foasprop : Foas.prop) (wfFoas : Foas.wfprop (dom store) foasprop ) :
       forall  (acc: relation World) (context : World) (WA : WF World V)
        (wfStore : WfStore ( WA) context store  ) (X : WF_VA VA WA ) 
        ( HaccElem: Weakening acc ( WA)), 
@@ -509,7 +509,7 @@ Qed.
      end .
 
 
-Theorem wf_foas_to_phoas_contract (World : Type) (V : Set) (acc : relation World)
+Theorem wf_foas_to_phoas_contract (World : Set) (V : Set) (acc : relation World)
     (VA: PL.ValueAlgebra V)
      (wfV : WF World V)
     (w : World)
@@ -781,14 +781,14 @@ Definition Wstore (V A:Set) := (A -> stringmap V -> Phoas.prop V) -> stringmap V
 
 
   Section WFs.
-  Variable (World : Type).
+  Variable (World : Set).
   Variable (acc : relation World).
   Variable  (pre : PreOrder acc).
   Variable ( V A: Set) (wfA :WF World A) (wfV :WF World V).
   Variable (VA : PL.ValueAlgebra V).
   Variable (weaken : Phoas.Weakening acc wfV).
 
-Definition WfFunc {World: Type} {A B : Set} (wfA :WF World A) (wfB : WF World B) : WF World (A -> B) :=
+Definition WfFunc {World: Set} {A B : Set} (wfA :WF World A) (wfB : WF World B) : WF World (A -> B) :=
 fun w f => forall (a:A), wfA w a -> wfB w (f a).
 
   Definition Box {A : Set} (WA : WF World A)  : WF World A :=
@@ -1329,7 +1329,7 @@ Lemma wpWeakest : forall  (post : PL.Value->stringmap PL.Value->Phoas.prop PL.Va
 
 
 Section binarySoundness.
-Definition Related (World : Type) (T1 : Set) := World-> T1 -> Type.
+Definition Related (World : Set) (T1 : Set) := World-> T1 -> Type.
 
 
 
