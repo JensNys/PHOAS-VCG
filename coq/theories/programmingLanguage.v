@@ -507,38 +507,6 @@ Qed.
      match foas_contract with
       | Foas.MkContract forallVar pre prog  arg result post => ForallC (fun v => HoareTriple (foas_to_phoas VA {[ forallVar := v ]} pre) prog v (fun r => foas_to_phoas VA ({[ forallVar := v ]} ∪ {[ result := r ]} ) post))
      end .
-Lemma lookup_union_case
-  (V : Set)
-  (v result_v : V)
-  (env : stringmap V)
-  (forallVar result : string) :
-  forall s v',  result <> forallVar ->
-    (env = ({[forallVar := v]}
-   ∪ {[result := result_v]})) /\ env  !! s = Some v' ->
-    (s = forallVar -> v' = v) /\
-    (s = result -> v' = result_v) /\
-    (s <> forallVar /\ s <> result -> False).
-    Proof.
-
-intros. split.
-   * destruct H0 as [Henv Hlookup].
-subst env. intros. rewrite H0 in *. 
-
-subst s.
-rewrite lookup_union_Some in Hlookup. 
-**
-  destruct Hlookup as [H1 | H2]. 
-      ***
-        rewrite lookup_singleton_Some in *. eauto.
-        destruct H1. 
-        rewrite H1. reflexivity.
-      *** 
-        rewrite lookup_singleton_Some in *. 
-        destruct H2. contradiction.
-** apply map_disjoint_singleton_l_2 .
-rewrite lookup_singleton_ne; done.
-* 
- Admitted. 
 
 
 Theorem wf_foas_to_phoas_contract (World : Type) (V : Set) (acc : relation World)
@@ -665,7 +633,7 @@ Qed.
      Proof.
      
      vm_compute. reflexivity.  
-     Admitted.
+     Qed.
      Set Printing Implicit.
 
      
@@ -1244,9 +1212,8 @@ Theorem wf_vc_foas : forall (c : Foas.Contract), Foas.wfprop empty (constraintGe
   
   unfold constraintGeneration.vc_foas.
   eapply Phoas.wf_phoas_to_foas. (*phoas to foas*)
-  - (*vc*)
+  -
     eapply (constraintGeneration.wf_vc set_subseteq_preorder Phoas.weakening_wfe Phoas.WF_VA_exp).
-    (*foas to phoas contract*)
     apply (Phoas.wf_foas_to_phoas_contract _ _ _ Phoas.WF_VA_exp Phoas.weakening_wfe).
 Qed.
 
@@ -1256,14 +1223,7 @@ Qed.
 
 
 
-Lemma vc_well_formed: forall (V:Set) (VA : PL.ValueAlgebra V) (World:Type) (Γ:World) wfV c acc , Phoas.wfprop acc  wfV Γ (constraintGeneration.vc VA c).
-Proof.
-intros.
-induction c.
-- simpl. constructor. intros. pose proof (H a).
-admit.
--   admit.
-Admitted.
+
 
 
 End well_formed_generation.
