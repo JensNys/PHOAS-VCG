@@ -1349,8 +1349,18 @@ Class Related_VA (World : Set) (V1 V2:Set) (VA1 : PL.ValueAlgebra V1) ( VA2: PL.
     wf_add : forall Γ v1 v2 v1' v2', Rel_V Γ v1 v2-> Rel_V Γ v1' v2' -> Rel_V Γ (VA1.(PL.add) v1 v1') (VA2.(PL.add) v2 v2');
 }.
 
-(*(VT1 : ValueAlgebra T1) (VT1 : ValueAlgebra T1)
-                   (p1 : Phoas.Prop T1) (p1 : Phoas.Prop T2)*)
+
+
+Definition Related_Store (World : Set) (V1 V2 : Set)  (Rel_V :Related World V1 V2) : Related World (stringmap V1) (stringmap V2) :=
+    fun (w : World) (store1 : stringmap V1) (store2 : stringmap V2)
+     =>
+    forall s v1 v2, (store1 !! s = Some v1) -> (store2 !! s = Some v2) -> (Rel_V w v1 v2 ).
+
+
+Definition WfStore (World : Set) (V : Set)  (WA :WF World V) : WF World (stringmap V) :=
+    fun (w : World) (store : stringmap V)
+     =>
+    forall s v, (store !! s = Some v) -> (WA w v ).
 
 
 
