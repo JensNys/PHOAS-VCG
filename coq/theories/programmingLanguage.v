@@ -1323,25 +1323,9 @@ Lemma wpWeakest : forall  (post : PL.Value->stringmap PL.Value->Phoas.prop PL.Va
   
 
 
-Section binarySoundness.
+Section Related.
 
 Definition Related (World : Set) (T1 T2: Set) := World->T1->T2->Prop.
-
-Definition RelProps 
-
-
-Theorem RelVC : forall (c : Phoas.contract), Related (constraintGeneration.vc)
-
-
-
-                  (VT1 : ValueAlgebra T1) (VT1 : ValueAlgebra T1)
-                   (p1 : Phoas.Prop T1) (p1 : Phoas.Prop T2)
-                   := World-> T1 -> Type.
-
-
-
-Definition int_expr : Related stringset PL.Value PL.Exp :=
-  fun world num exp => ((PL.interp_to_va_default PL.value_valueAlgebra ∅ exp) = num).
 
 Class Related_VA (World : Set) (V1 V2:Set) (VA1 : PL.ValueAlgebra V1) ( VA2: PL.ValueAlgebra V2)
 (Rel_V: Related World V1 V2)  := {
@@ -1356,15 +1340,61 @@ Definition Related_Store (World : Set) (V1 V2 : Set)  (Rel_V :Related World V1 V
      =>
     forall s v1 v2, (store1 !! s = Some v1) -> (store2 !! s = Some v2) -> (Rel_V w v1 v2 ).
 
-
-Definition WfStore (World : Set) (V : Set)  (WA :WF World V) : WF World (stringmap V) :=
-    fun (w : World) (store : stringmap V)
-     =>
-    forall s v, (store !! s = Some v) -> (WA w v ).
-
+Class Related_Weakening (V1 V2:Set)  (World: Set) (Acc: relation World) (Rel_V: Related World V1 V2) := {
+    weaken : forall (Γ Γ' : World) (v1:V1) (v2:V2), Acc Γ Γ' -> Rel_V Γ v1 v2 -> Rel_V Γ' v1 v2 
+}.
+(*this might not hold for int_expr since we're using defaults in the interpretation here. For example 0 and (PL.Var "x") are related under the empty set, since the lookup fails and the result defaults to 0 but since [] is a subset of ["x"-> 1], they won't be related under this new map.*)
 
 
-End binarySoundness.
+Section Related_props.
+
+    Context {World : Set} (Acc : relation World) {pre : PreOrder Acc}.
+
+    Variable (A1 A2 : Set).
+    Variable (Rel_A :Related World A1 A2).
+    Variable (weaken : Related_Weakening Acc Rel_A).
+    Inductive rel_prop (w : World) : Phoas.prop A1 -> Phoas.prop A2 -> Prop :=
+      | RelT : rel_prop w (Phoas.T A1) (Phoas.T A2)
+      | RelF : rel_prop w (Phoas.F A1) (Phoas.F A2)
+      | RelImplies {l1 r1 : Phoas.prop A1} {l2 r2 : Phoas.prop A2} :
+                                   rel_prop w l1 l2 -> 
+                                   rel_prop w r1 r2 -> 
+                                   rel_prop w (Phoas.Implies l1 r1) (Phoas.Implies l2 r2)
+      | RelAnd {l1 l2 r1 r2} :     rel_prop w l1 l2 -> 
+                                   rel_prop w r1 r2 -> 
+                                   rel_prop w (Phoas.And l1 r1) (Phoas.And l2 r2)
+      | RelOr {l1 l2 r1 r2} :      rel_prop w l1 l2 ->
+                                   rel_prop w r1 r2 -> 
+                                   rel_prop w (Phoas.Or l1 r1) (Phoas.Or l2 r2)
+      | RelForall {f1 : A1 -> Phoas.prop A1} {f2 : A2 -> Phoas.prop A2} :
+          (forall a1 a2 w', Acc w w' -> Rel_A w' a1 a2 -> rel_prop w' (f1 a1) (f2 a2)) ->
+          rel_prop w (Phoas.Forall f1) (Phoas.Forall f2)
+      | RelCmp {r : Relop} {a1 b1 : A1} {a2 b2 : A2} : 
+          Rel_A w a1 a2 -> Rel_A w b1 b2 -> 
+          rel_prop w (Phoas.Cmp r a1 b1) (Phoas.Cmp r a2 b2).
+
+  End Related_props.
+
+
+(*Theorem RelVC : forall (c : Phoas.contract), Related (constraintGeneration.vc)
+
+
+
+                  (VT1 : ValueAlgebra T1) (VT1 : ValueAlgebra T1)
+                   (p1 : Phoas.Prop T1) (p1 : Phoas.Prop T2)
+                   := World-> T1 -> Type.*)
+
+
+
+Definition int_expr : Related stringset PL.Value PL.Exp :=
+  fun world num exp => ((PL.interp_to_va_default PL.value_valueAlgebra ∅ exp) = num).
+
+
+
+
+
+
+End Related.
 
 
 
