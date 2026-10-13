@@ -340,12 +340,7 @@ Inductive prop (A : Set) : Set :=
      
 
     
-    Lemma variable_introduction_domain :forall (V:Set) (store : stringmap V) x arg, (dom store ∪ {[x]}) = (dom (<[x:=arg]> store)) .
-    Proof.
-    intros.
-    rewrite dom_insert_L. 
-    set_solver.
-    Defined.
+    
 
 
 
@@ -366,8 +361,8 @@ Inductive prop (A : Set) : Set :=
 
 Class WF_VA (World : Set) (V:Set) (VA: PL.ValueAlgebra V) 
 (WA: WF World V)  := {
-    wf_lit : forall Γ n, WA Γ (PL.lit n);
-    wf_add : forall Γ v1 v2, WA Γ v1 -> WA Γ v2 -> WA Γ (PL.add v1 v2);
+    wf_lit : forall Γ n, WA Γ (VA.(PL.lit) n);
+    wf_add : forall Γ v1 v2, WA Γ v1 -> WA Γ v2 -> WA Γ (VA.(PL.add) v1 v2);
 }.
 
 
@@ -1213,8 +1208,8 @@ Theorem wf_vc_foas : forall (c : Foas.Contract), Foas.wfprop empty (constraintGe
   unfold constraintGeneration.vc_foas.
   eapply Phoas.wf_phoas_to_foas. (*phoas to foas*)
   -
-    eapply (constraintGeneration.wf_vc set_subseteq_preorder Phoas.weakening_wfe Phoas.WF_VA_exp).
-    apply (Phoas.wf_foas_to_phoas_contract _ _ _ Phoas.WF_VA_exp Phoas.weakening_wfe).
+    eapply (constraintGeneration.wf_vc set_subseteq_preorder Phoas.weakening_wfe Phoas.WF_VA_exp). (*vc_foas*)
+    apply (Phoas.wf_foas_to_phoas_contract _ _ _ Phoas.WF_VA_exp Phoas.weakening_wfe). (*foas to phoas contract*)
 Qed.
 
 
@@ -1329,8 +1324,33 @@ Lemma wpWeakest : forall  (post : PL.Value->stringmap PL.Value->Phoas.prop PL.Va
 
 
 Section binarySoundness.
-Definition Related (World : Set) (T1 : Set) := World-> T1 -> Type.
 
+Definition Related (World : Set) (T1 T2: Set) := World->T1->T2->Prop.
+
+Definition RelProps 
+
+
+Theorem RelVC : forall (c : Phoas.contract), Related (constraintGeneration.vc)
+
+
+
+                  (VT1 : ValueAlgebra T1) (VT1 : ValueAlgebra T1)
+                   (p1 : Phoas.Prop T1) (p1 : Phoas.Prop T2)
+                   := World-> T1 -> Type.
+
+
+
+Definition int_expr : Related stringset PL.Value PL.Exp :=
+  fun world num exp => ((PL.interp_to_va_default PL.value_valueAlgebra ∅ exp) = num).
+
+Class Related_VA (World : Set) (V1 V2:Set) (VA1 : PL.ValueAlgebra V1) ( VA2: PL.ValueAlgebra V2)
+(Rel_V: Related World V1 V2)  := {
+    wf_lit : forall Γ n, Rel_V Γ (VA1.(PL.lit) n) (VA2.(PL.lit) n);
+    wf_add : forall Γ v1 v2 v1' v2', Rel_V Γ v1 v2-> Rel_V Γ v1' v2' -> Rel_V Γ (VA1.(PL.add) v1 v1') (VA2.(PL.add) v2 v2');
+}.
+
+(*(VT1 : ValueAlgebra T1) (VT1 : ValueAlgebra T1)
+                   (p1 : Phoas.Prop T1) (p1 : Phoas.Prop T2)*)
 
 
 
