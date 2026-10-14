@@ -1485,25 +1485,38 @@ Definition Rel_Wstore ( V1 V2 A1 A2: Set) (rel_V :Related World V1 V2) (rel_A :R
     eauto.
     Qed.
 
-    Lemma rel_lookupWstore  (w:World) (s : string)  : Rel_Wstore rel_V rel_V w (vcg.lookupWstore s) (vcg.lookupWstore s).
+  Lemma rel_lookupWstore  (w:World) (s : string)  : Rel_Wstore rel_V rel_V w (vcg.lookupWstore s) (vcg.lookupWstore s).
   unfold vcg.lookupWstore.
   unfold Rel_Wstore.
-  intros post1 post2 H store1 store2 wfStore .
+  intros post1 post2 H store1 store2 rel_Store .
   
   destruct (store1 !! s) eqn:HEQ1; destruct (store2 !! s) eqn:HEQ2;eauto.
   - apply H;eauto.
-      specialize (wfStore s).
-      rewrite HEQ1, HEQ2 in wfStore. eauto.
-  -specialize (wfStore s).
-  rewrite HEQ1, HEQ2 in wfStore. contradiction.
-  -specialize (wfStore s).
-  rewrite HEQ1, HEQ2 in wfStore. contradiction.
+      specialize (rel_Store s).
+      rewrite HEQ1, HEQ2 in rel_Store. eauto.
+  -specialize (rel_Store s).
+  rewrite HEQ1, HEQ2 in rel_Store. contradiction.
+  -specialize (rel_Store s).
+  rewrite HEQ1, HEQ2 in rel_Store. contradiction.
   - constructor.
   Qed.
 
+  
+  Lemma rel_lookupWstore_safe  (w:World) (s : string)  : Rel_Wstore rel_V (Rel_option rel_V) w (vcg.lookupWstore_safe s) (vcg.lookupWstore_safe s).
 
+  unfold vcg.lookupWstore_safe.
+  unfold Rel_Wstore.
+  unfold Rel_Func.
+  
+  intros post1 post2 H store1 store2 rel_Store .
+  eapply H;eauto.
 
-
+  unfold Rel_option.
+  
+  destruct (store1 !! s) eqn:Heq1 ;destruct (store2 !! s) eqn:Heq2 ;eauto.
+  specialize (rel_Store s).
+  rewrite Heq1, Heq2 in rel_Store. eauto.
+  Qed.
 
   End Rels.
 End Related.
