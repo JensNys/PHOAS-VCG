@@ -1367,7 +1367,8 @@ Section Related_props.
 
   End Related_props.
 
-
+  
+  
 
 
 
@@ -1450,6 +1451,20 @@ Lemma refl : forall w, acc w w.
        -- eauto.
     - eauto.
   Qed.
+
+Inductive rel_Contract (w:World) :  Phoas.Contract V1 -> Phoas.Contract V2 -> Prop :=
+  | Rel_ForallC {f1 : V1 -> Phoas.Contract V1} {f2 : V2 -> Phoas.Contract V2} :
+        (forall (v1 : V1) (v2 : V2) w', acc w w' -> rel_V w' v1 v2 -> rel_Contract  w' (f1 v1) (f2 v2)) ->
+        rel_Contract w (Phoas.ForallC f1) (Phoas.ForallC f2)
+  | Rel_HoareTriple (pre1 : Phoas.prop V1) (pre2 : Phoas.prop V2) (program : PL.Prog) (arg1:V1) (arg2:V2) (post1 :V1 -> Phoas.prop V1) (post2 :V2 -> Phoas.prop V2):
+        rel_prop acc rel_V w pre1 pre2 ->
+        rel_V w arg1 arg2->
+        (forall (result1 : V1) (result2 : V2) w', acc w w' -> rel_V w' result1 result2 ->
+          rel_prop acc rel_V w' (post1 result1) (post2 result2)) -> 
+          rel_Contract w (Phoas.HoareTriple pre1 program arg1 post1) (Phoas.HoareTriple pre2 program arg2 post2)
+          .
+
+
 
 
   Definition Rel_Post ( V1 V2 A1 A2: Set) (rel_A :Related World A1 A2) (rel_V :Related World V1 V2): Related World (A1->stringmap V1 → Phoas.prop V1) (A2->stringmap V2 → Phoas.prop V2) :=
@@ -1579,7 +1594,7 @@ Lemma wf_exec_stm
       : Rel_Wstore rel_V rel_V w (vcg.exec_stm VAV1 stm) (vcg.exec_stm VAV2 stm).
 Admitted.
 
-Lemma wf_wp
+Lemma rel_wp
   (rel_VA : Rel_VA VAV1 VAV2 rel_V) (stm : PL.Stm)
     (w:World) (post1 : V1 -> stringmap V1 -> Phoas.prop V1) (post2 : V2 -> stringmap V2 -> Phoas.prop V2)  (initStore1 : stringmap V1) (initStore2 : stringmap V2)
       (Rel_post : (□ (Rel_Post rel_V rel_V)) w post1 post2) (WfinitStore : Rel_Store rel_V w initStore1 initStore2)
@@ -1589,7 +1604,14 @@ Lemma wf_wp
     eapply wf_exec_stm; eauto.
   Qed.
 
-  
+  Lemma rel_vc
+   (rel_VA : Rel_VA VAV1 VAV2 rel_V) (c1 : Phoas.Contract V1) (c2 : Phoas.Contract V2) (w : World): 
+    rel_Contract w c1 c2 ->
+    Rel_prop rel_V w (vcg.vc VAV1 c1) (vcg.vc VAV2 c2).
+
+
+
+
 
   End Rels.
 End Related.
