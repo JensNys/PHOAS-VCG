@@ -865,21 +865,7 @@ Definition Wf_Wstore (V A:Set)  (wfV :WF World V) (wfA : WF World A) : WF World 
 
 
 
-  Lemma S   : forall (p : WF World V) (w : World) (v : V), Box wfV w v -> wfV w v.
-  Proof using pre.
-  intros p w v Hbox.
-  apply Hbox.
-  reflexivity.
-  Qed.
-
-  Lemma positive_introspection  : forall (p : WF World V) (w : World) (v : V), Box wfV w v -> Box (Box wfV) w v.
-  Proof using pre.
-  unfold Box in *.
-  
-  intros p w v Hbox w' Hw' w'' Hw''.
-  apply Hbox.
-  etransitivity ;eauto.
-  Qed.
+ 
 
   
   
