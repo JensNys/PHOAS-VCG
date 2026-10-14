@@ -1407,6 +1407,16 @@ Delimit Scope rel_scope with R.
 
   Notation "□ A"    := (Box A%R) (at level 50, A at level 9): rel_scope.
 
+Lemma refl : forall w, acc w w.
+  reflexivity.
+  Qed.
+  Hint Resolve refl : core.
+
+  Lemma trans : forall w w' w'', acc w w' -> acc w' w'' -> acc w w''.
+
+  etransitivity ;eauto.
+  Qed.
+  Hint Resolve trans : core.
 
 
   
@@ -1455,10 +1465,19 @@ Definition Rel_Wstore ( V1 V2 A1 A2: Set) (rel_V :Related World V1 V2) (rel_A :R
   repeat unfold Wf_Wstore,WfFunc,WfPost, WfProp, Box.
   intros post1 post2 Hpost store Hstore.
   eapply Hpost;eauto.
-  reflexivity.
   Qed.
 
-
+  Lemma Rel_Bind  (C1 C2 B1 B2: Set) (rel_C : Related World C1 C2)  (rel_B :Related World B1 B2) 
+    (w:World) (c1 : vcg.Wstore T1 C1) (c2 : vcg.Wstore T2 C2) (k1 : C1->vcg.Wstore T1 B1) (k2 : C2->vcg.Wstore T2 B2) 
+    (Rel_c : Rel_Wstore rel_T rel_C w c1 c2) (wf_k : Box ( Rel_lift rel_T rel_C rel_B ) w k1 k2) : Rel_Wstore rel_T rel_B w (vcg.bind c1 k1) (vcg.bind c2 k2).
+    unfold vcg.bind.
+    unfold Rel_Wstore.
+    unfold Rel_Func.
+    
+    repeat unfold Rel_Wstore,Rel_Func,Rel_Post, Rel_prop, Box, Rel_lift in *.
+    intros  post1 post2 H store1 store2 RelStore . 
+    eauto.
+    Qed.
 
 
 
