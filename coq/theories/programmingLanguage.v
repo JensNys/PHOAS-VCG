@@ -463,7 +463,7 @@ Qed.
     | Phoas.Cmp r a b => Foas.Cmp r (a ) (b)
     end.
 
-  Definition wfr : WF stringset (R PL.Exp) : Type :=
+  Definition wfr : WF stringset (R PL.Exp) :=
     fun (Γ : stringset) (m : R PL.Exp)  => PL.wfexp Γ (m Γ).
 
   Definition wfe  : WF stringset (PL.Exp) :=
@@ -988,18 +988,6 @@ Lemma wflookupWstore_safe  (w:World) (s : string)  : Wf_Wstore wfV (Wfoption wfV
   
   
 
-  Fixpoint WfExpfp (wfString : WF World string) (w : World) (e : PL.Exp) : Prop :=
-  match e with
-  | PL.Lit n     => True
-  | PL.Var x     => wfString w x
-  | PL.Add e1 e2 => (WfExpfp wfString w e1) /\ (WfExpfp wfString w e2)
-  end.
-
-  Definition WfExp (wfString : WF World string) : WF World PL.Exp :=
-    fun w e => WfExpfp wfString w e.
-
-    
-  
   Fixpoint exec_exp (V:Set) (VA : PL.ValueAlgebra V) (e : PL.Exp) : (Wstore V V):= 
   match e with
   | PL.Lit n => ret (VA.(PL.lit) n)
@@ -1048,11 +1036,7 @@ Lemma wflookupWstore_safe  (w:World) (s : string)  : Wf_Wstore wfV (Wfoption wfV
   Definition wf_string_store  {V:Set} (store: stringmap V) (wfV : WF World V) : WF World string :=
   fun w s => forall v,  store !! s = Some v -> wfV w v.
 
-  Fixpoint WfStmfp (wfString : WF World string) (w : World) (p : PL.Stm) : Prop :=
-  match p with
-  | PL.Expr e => WfExpfp wfString w e
-  | PL.Let var e body => forall w', acc w w' -> wfString w' var -> WfStmfp wfString w' body 
-  end.
+
 
 
 
@@ -1384,11 +1368,19 @@ Section Related_props.
                    (p1 : Phoas.Prop T1) (p1 : Phoas.Prop T2)
                    := World-> T1 -> Type.*)
 
+Inductive rel_value_exp (Γ : stringmap PL.Value) : PL.Value -> PL.Exp -> Prop :=
+| Rel_Lit n :
+  rel_value_exp Γ n (PL.Lit n)
+| WfVar x v:
+  Γ !! x = Some v ->
+  rel_value_exp Γ v (PL.Var x)
+| WfAdd e1 e2 v1 v2:
+  rel_value_exp Γ v1 e1 ->
+  rel_value_exp Γ v2 e2 ->
+  rel_value_exp Γ (Z.add v1 v2) (PL.Add e1 e2).
 
-
-Definition int_expr : Related stringset PL.Value PL.Exp :=
-  fun world num exp => ((PL.interp_to_va_default PL.value_valueAlgebra ∅ exp) = num).
-
+Definition int_expr : Related (stringmap PL.Value) PL.Value PL.Exp :=
+  fun world num exp => rel_value_exp world num exp.
 
 
 
