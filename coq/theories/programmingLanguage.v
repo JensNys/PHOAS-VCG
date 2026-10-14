@@ -1023,8 +1023,6 @@ Lemma wflookupWstore_safe  (w:World) (s : string)  : Wf_Wstore wfV (Wfoption wfV
      
      
 
-  Definition wf_string_store  {V:Set} (store: stringmap V) (wfV : WF World V) : WF World string :=
-  fun w s => forall v,  store !! s = Some v -> wfV w v.
 
 
 
@@ -1315,6 +1313,8 @@ Inductive rel_value_exp (Γ : stringmap PL.Value) : PL.Value -> PL.Exp -> Prop :
 Definition int_expr : Related (stringmap PL.Value) PL.Value PL.Exp :=
   fun world num exp => rel_value_exp world num exp.
 
+ 
+
 Class Rel_VA (World : Set) (V1 V2:Set) (VA1 : PL.ValueAlgebra V1) ( VA2: PL.ValueAlgebra V2)
 (Rel_V: Related World V1 V2)  := {
     wf_lit : forall Γ n, Rel_V Γ (VA1.(PL.lit) n) (VA2.(PL.lit) n);
@@ -1390,7 +1390,7 @@ Section Related_props.
   Variable (acc : relation World).
   Variable  (pre : PreOrder acc).
   Variable ( V1 V2: Set) (rel_V :Related World V1 V2).
-  Variable (VAT1 : PL.ValueAlgebra V1) (VAT2 : PL.ValueAlgebra V2).
+  Variable (VAV1 : PL.ValueAlgebra V1) (VAV2 : PL.ValueAlgebra V2).
   Variable (weaken : Related_Weakening acc rel_V).
 
 
@@ -1401,7 +1401,8 @@ fun w f f'=> forall (a:A) (a':A'), rel_A w a a'-> rel_B w (f a) (f' a').
 Definition Box   {T1 T2: Set} (rel_T : Related World T1 T2)  : Related World T1 T2 :=
   fun w t1 t2 => forall w' , acc w w' -> rel_T w' t1 t2 .
 
-
+Definition rel_unit : Related World unit unit :=
+  fun w u1 u2 => True.
 
 Declare Scope rel_scope.
 Delimit Scope rel_scope with R.
@@ -1517,6 +1518,65 @@ Definition Rel_Wstore ( V1 V2 A1 A2: Set) (rel_V :Related World V1 V2) (rel_A :R
   specialize (rel_Store s).
   rewrite Heq1, Heq2 in rel_Store. eauto.
   Qed.
+
+Lemma rel_insertWstore  (w:World) (varname : string) (v1:V1) (v2: V2) (rel_v : rel_V w v1 v2) :  (Rel_Wstore rel_V rel_unit w (vcg.insertWstore varname v1) (vcg.insertWstore varname v2)).
+  unfold Rel_Wstore, Rel_Func, Rel_Post, Box, vcg.insertWstore ,"↣" ,Rel_prop.
+
+  intros post1 post2 Hpost store1 store2 rel_Store.
+  specialize (Hpost w (refl w) tt tt I).
+  apply Hpost.
+  intros s.
+  destruct (decide (s = varname)) as [-> | Hne1].
+
+  (*
+  - rewrite lookup_insert_eq in Hlookup. injection Hlookup. intro veq. rewrite  <- veq. exact wf_v.
+  -  rewrite lookup_insert_ne in Hlookup;eauto.
+  Qed.
+  *)
+  Admitted.
+  
+
+
+
+
+
+  Lemma rel_deleteWstore  (w:World) (varname : string)  : Rel_Wstore rel_V rel_unit w (vcg.deleteWstore varname) (vcg.deleteWstore varname).
+  unfold Rel_Wstore, Rel_Func, Rel_Post, Box, vcg.insertWstore ,"↣" ,Rel_prop.
+  intros post1 post2 Hpost store1 store2 rel_Store.
+  specialize (Hpost w (refl w) tt tt I ).
+  apply Hpost.
+  Admitted.
+  (*
+  intros s v' v'' Hlookup.
+  destruct (decide (s = varname)) as [-> | Hne].
+  - rewrite lookup_delete_eq in Hlookup. discriminate. 
+  -  rewrite lookup_delete_ne in Hlookup;eauto.
+  Qed.
+  *)
+
+
+
+
+
+Lemma rel_restoreWstore  (w:World) (varname : string) (opt_v1:option V1) (opt_v2:option V2) (rel_opt : (Rel_option rel_V) w opt_v1 opt_v2) : Rel_Wstore rel_V rel_unit w (vcg.restoreWstore varname opt_v1) (vcg.restoreWstore varname opt_v2).
+ Proof.
+  destruct opt_v1 as [v1|];destruct opt_v2 as [v2|]; simpl in *. 
+  - apply rel_insertWstore.  exact rel_opt.
+  - admit.
+  - admit.
+  - apply rel_deleteWstore.
+  Admitted.
+
+Lemma wf_exec_exp  
+  (rel_VA : Rel_VA VAV1 VAV2 rel_V) (e : PL.Exp)  
+    (w:World) 
+      : Rel_Wstore rel_V rel_V w (vcg.exec_exp VAV1 e) (vcg.exec_exp VAV2 e).
+  Admitted.
+
+
+
+
+
 
   End Rels.
 End Related.
