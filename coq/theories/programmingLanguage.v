@@ -1567,16 +1567,29 @@ Lemma rel_restoreWstore  (w:World) (varname : string) (opt_v1:option V1) (opt_v2
   - apply rel_deleteWstore.
   Admitted.
 
-Lemma wf_exec_exp  
+Lemma rel_exec_exp  
   (rel_VA : Rel_VA VAV1 VAV2 rel_V) (e : PL.Exp)  
     (w:World) 
       : Rel_Wstore rel_V rel_V w (vcg.exec_exp VAV1 e) (vcg.exec_exp VAV2 e).
   Admitted.
 
+Lemma wf_exec_stm  
+  (rel_VA : Rel_VA VAV1 VAV2 rel_V) (stm : PL.Stm)  
+    (w:World) 
+      : Rel_Wstore rel_V rel_V w (vcg.exec_stm VAV1 stm) (vcg.exec_stm VAV2 stm).
+Admitted.
 
+Lemma wf_wp
+  (rel_VA : Rel_VA VAV1 VAV2 rel_V) (stm : PL.Stm)
+    (w:World) (post1 : V1 -> stringmap V1 -> Phoas.prop V1) (post2 : V2 -> stringmap V2 -> Phoas.prop V2)  (initStore1 : stringmap V1) (initStore2 : stringmap V2)
+      (Rel_post : (□ (Rel_Post rel_V rel_V)) w post1 post2) (WfinitStore : Rel_Store rel_V w initStore1 initStore2)
+      : Rel_prop rel_V w (vcg.wp VAV1 stm post1 initStore1) (vcg.wp VAV2 stm post2 initStore2).
+  Proof using pre weaken.
+    unfold vcg.wp.
+    eapply wf_exec_stm; eauto.
+  Qed.
 
-
-
+  
 
   End Rels.
 End Related.
