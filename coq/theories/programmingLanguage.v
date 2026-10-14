@@ -763,7 +763,7 @@ End Hoas.
 
 
 
-Module constraintGeneration.
+Module vcg.
 Definition Wstore (V A:Set) := (A -> stringmap V -> Phoas.prop V) -> stringmap V -> Phoas.prop V.
 
 
@@ -789,15 +789,19 @@ fun w f => forall (a:A), wfA w a -> wfB w (f a).
   Definition Box {A : Set} (WA : WF World A)  : WF World A :=
     fun w a => forall w' , acc w w' -> WA w' a .
 
-Declare Scope rel_scope.
-Delimit Scope rel_scope with R.
- Open Scope rel_scope.
+
+Declare Scope wf_scope.
+Delimit Scope wf_scope with R.
+ Open Scope wf_scope.
   Notation "A ↣ B" :=
       (WfFunc A%R B%R)
         (at level 99, B at level 200, right associativity)
-        : rel_scope.
+        : wf_scope.
 
-  Notation "□ A"    := (Box A%R) (at level 50, A at level 9): rel_scope.
+  Notation "□ A"    := (Box A%R) (at level 50, A at level 9): wf_scope.
+ 
+
+
         
 
 Lemma refl : forall w, acc w w.
@@ -1172,7 +1176,7 @@ Qed.
 
 
 End WFs.
-  End constraintGeneration.
+  End vcg.
 
 Section well_formed_generation.
 Check Phoas.wfprop.
@@ -1185,14 +1189,14 @@ Print Instances PreOrder.
 
 
 
-Theorem wf_vc_foas : forall (c : Foas.Contract), Foas.wfprop empty (constraintGeneration.vc_foas c).
+Theorem wf_vc_foas : forall (c : Foas.Contract), Foas.wfprop empty (vcg.vc_foas c).
   intros c.
   destruct c.
   
-  unfold constraintGeneration.vc_foas.
+  unfold vcg.vc_foas.
   eapply Phoas.wf_phoas_to_foas. (*phoas to foas*)
   -
-    eapply (constraintGeneration.wf_vc set_subseteq_preorder Phoas.weakening_wfe Phoas.WF_VA_exp). (*vc_foas*)
+    eapply (vcg.wf_vc set_subseteq_preorder Phoas.weakening_wfe Phoas.WF_VA_exp). (*vc_foas*)
     apply (Phoas.wf_foas_to_phoas_contract _ _ _ Phoas.WF_VA_exp Phoas.weakening_wfe). (*foas to phoas contract*)
 Qed.
 
@@ -1220,7 +1224,7 @@ Lemma wpWeakest : forall  (post : PL.Value->stringmap PL.Value->Phoas.prop PL.Va
   
   (Phoas.semant pre -> PL.evalStm initStore stm (result,endmap)-> Phoas.semant (post result endmap)) (*if pre is a precondition*)
   ->
-  (Phoas.semant pre -> Phoas.semant (constraintGeneration.wp PL.value_valueAlgebra stm post initStore) ). Admitted.
+  (Phoas.semant pre -> Phoas.semant (vcg.wp PL.value_valueAlgebra stm post initStore) ). Admitted.
 
 
 
@@ -1228,7 +1232,7 @@ Lemma wpWeakest : forall  (post : PL.Value->stringmap PL.Value->Phoas.prop PL.Va
 
 
   Lemma wpPreconditionHoas : forall  (post : PL.Value->Hoas.prop) (stm : PL.Stm)  (inp : PL.Value) (arg : string) result fname,       
-  (Phoas.semant (constraintGeneration.wp PL.value_valueAlgebra stm (constraintGeneration.ignore_map (Hoas.hoas_to_phoas ∘  post)) {[arg := inp]})) 
+  (Phoas.semant (vcg.wp PL.value_valueAlgebra stm (vcg.ignore_map (Hoas.hoas_to_phoas ∘  post)) {[arg := inp]})) 
   ->
   (PL.evalProg (PL.Fun fname arg stm ) inp result)-> Hoas.semant (post result ). Admitted. (*if pre is a precondition*)
   
@@ -1262,13 +1266,13 @@ Lemma wpWeakest : forall  (post : PL.Value->stringmap PL.Value->Phoas.prop PL.Va
 
 
 
-  Definition adequate (c : Phoas.Contract PL.Value) : Hoas.semant (constraintGeneration.vc_hoas c) ->  Hoas.contract_semant (Hoas.phoas_to_hoas_contract c).
+  Definition adequate (c : Phoas.Contract PL.Value) : Hoas.semant (vcg.vc_hoas c) ->  Hoas.contract_semant (Hoas.phoas_to_hoas_contract c).
   Proof.
   
   unfold Hoas.contract_semant.
   intros.
   (*intros.*)
-  unfold constraintGeneration.vc_hoas in H.
+  unfold vcg.vc_hoas in H.
   
   simpl in H.
   apply translation_irrelevance in H0.
@@ -1290,8 +1294,8 @@ Lemma wpWeakest : forall  (post : PL.Value->stringmap PL.Value->Phoas.prop PL.Va
   apply Hwp.
   - intros. apply H in H1.
     unfold "∘".
-    pose proof (Hoas.preserves_semantics (constraintGeneration.wp PL.value_valueAlgebra body
-              (constraintGeneration.ignore_map
+    pose proof (Hoas.preserves_semantics (vcg.wp PL.value_valueAlgebra body
+              (vcg.ignore_map
                 (λ result : PL.Value,
                     Hoas.hoas_to_phoas (post inp result)))
               {[param := inp]})).
@@ -1311,6 +1315,20 @@ Section Related.
 
 Definition Related (World : Set) (T1 T2: Set) := World->T1->T2->Prop.
 
+Inductive rel_value_exp (Γ : stringmap PL.Value) : PL.Value -> PL.Exp -> Prop :=
+| Rel_Lit n :
+  rel_value_exp Γ n (PL.Lit n)
+| WfVar x v:
+  Γ !! x = Some v ->
+  rel_value_exp Γ v (PL.Var x)
+| WfAdd e1 e2 v1 v2:
+  rel_value_exp Γ v1 e1 ->
+  rel_value_exp Γ v2 e2 ->
+  rel_value_exp Γ (Z.add v1 v2) (PL.Add e1 e2).
+
+Definition int_expr : Related (stringmap PL.Value) PL.Value PL.Exp :=
+  fun world num exp => rel_value_exp world num exp.
+
 Class Related_VA (World : Set) (V1 V2:Set) (VA1 : PL.ValueAlgebra V1) ( VA2: PL.ValueAlgebra V2)
 (Rel_V: Related World V1 V2)  := {
     wf_lit : forall Γ n, Rel_V Γ (VA1.(PL.lit) n) (VA2.(PL.lit) n);
@@ -1327,8 +1345,6 @@ Definition Related_Store (World : Set) (V1 V2 : Set)  (Rel_V :Related World V1 V
 Class Related_Weakening (V1 V2:Set)  (World: Set) (Acc: relation World) (Rel_V: Related World V1 V2) := {
     weaken : forall (Γ Γ' : World) (v1:V1) (v2:V2), Acc Γ Γ' -> Rel_V Γ v1 v2 -> Rel_V Γ' v1 v2 
 }.
-(*this might not hold for int_expr since we're using defaults in the interpretation here. For example 0 and (PL.Var "x") are related under the empty set, since the lookup fails and the result defaults to 0 but since [] is a subset of ["x"-> 1], they won't be related under this new map.*)
-
 
 Section Related_props.
 
@@ -1360,47 +1376,61 @@ Section Related_props.
   End Related_props.
 
 
-(*Theorem RelVC : forall (c : Phoas.contract), Related (constraintGeneration.vc)
+
+
+
+
+
+
+
+
+(*Theorem RelVC : forall (c : Phoas.contract), Related (vcg.vc)
 
 
 
                   (VT1 : ValueAlgebra T1) (VT1 : ValueAlgebra T1)
                    (p1 : Phoas.Prop T1) (p1 : Phoas.Prop T2)
                    := World-> T1 -> Type.*)
-
-Inductive rel_value_exp (Γ : stringmap PL.Value) : PL.Value -> PL.Exp -> Prop :=
-| Rel_Lit n :
-  rel_value_exp Γ n (PL.Lit n)
-| WfVar x v:
-  Γ !! x = Some v ->
-  rel_value_exp Γ v (PL.Var x)
-| WfAdd e1 e2 v1 v2:
-  rel_value_exp Γ v1 e1 ->
-  rel_value_exp Γ v2 e2 ->
-  rel_value_exp Γ (Z.add v1 v2) (PL.Add e1 e2).
-
-Definition int_expr : Related (stringmap PL.Value) PL.Value PL.Exp :=
-  fun world num exp => rel_value_exp world num exp.
-
-
-
-
-
 End Related.
 
 
 
 
 
+Definition Rel_Func {World: Set} {A A' B B' : Set} (rel_A :Related World A A') (rel_B : Related World B B') : Related World (A -> B) (A' -> B') :=
+fun w f f'=> forall (a:A) (a':A'), rel_A w a a'-> rel_B w (f a) (f' a').
 
+Definition Box {World : Set} (acc : relation World) {T1 T2: Set} (rel_T : Related World T1 T2)  : Related World T1 T2 :=
+  fun w t1 t2 => forall w' , acc w w' -> rel_T w' t1 t2 .
+
+
+
+Declare Scope rel_scope.
+Delimit Scope rel_scope with R.
+ Open Scope rel_scope.
+  Notation "A ↣ B" :=
+      (Rel_Func A%R B%R)
+        (at level 99, B at level 200, right associativity)
+        : rel_scope.
+
+  Notation "□ A"    := (Box A%R) (at level 50, A at level 9): rel_scope.
+
+  
+ 
+
+  
 
 Section EndToEndSoundness.
+
+
+
+
 
 (* 
 If the verification condition is true, running the program with the right precondition will yield a result with the right postcondition.
 *)
 Definition foas_adequate (c : Foas.Contract) : 
-      Foas.semant (constraintGeneration.vc_foas c) ->  Foas.contract_semant c.
+      Foas.semant (vcg.vc_foas c) ->  Foas.contract_semant c.
 Proof.
 Admitted.
 
