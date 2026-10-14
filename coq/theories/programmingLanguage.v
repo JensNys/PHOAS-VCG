@@ -898,7 +898,7 @@ Definition Wf_Wstore (V A:Set)  (wfV :WF World V) (wfA : WF World A) : WF World 
   unfold lookupWstore.
   unfold Wf_Wstore.
   unfold WfFunc.
-  repeat unfold Wf_Wstore,WfFunc,WfPost, WfProp', Box, Wf_lift in *.
+  repeat unfold Wf_Wstore,WfFunc,WfPost,  Box, Wf_lift in *.
   intros post H store wfStore .
   
   destruct (store !! s) eqn:Heq .
@@ -1326,7 +1326,13 @@ Class Rel_VA (World : Set) (V1 V2:Set) (VA1 : PL.ValueAlgebra V1) ( VA2: PL.Valu
 Definition Rel_Store (World : Set) (V1 V2 : Set)  (Rel_V :Related World V1 V2) : Related World (stringmap V1) (stringmap V2) :=
     fun (w : World) (store1 : stringmap V1) (store2 : stringmap V2)
      =>
-    forall s v1 v2, (store1 !! s = Some v1) -> (store2 !! s = Some v2) -> (Rel_V w v1 v2 ).
+    forall s, match store1 !! s, store2 !! s with
+                    | Some v1, Some v2 => Rel_V w v1 v2
+                    | None, None => True
+                    | _, _ => False
+              end.
+
+
 
 Class Related_Weakening (V1 V2:Set)  (World: Set) (Acc: relation World) (Rel_V: Related World V1 V2) := {
     weaken : forall (Γ Γ' : World) (v1:V1) (v2:V2), Acc Γ Γ' -> Rel_V Γ v1 v2 -> Rel_V Γ' v1 v2 
@@ -1383,9 +1389,9 @@ Section Related_props.
   Variable (World : Set).
   Variable (acc : relation World).
   Variable  (pre : PreOrder acc).
-  Variable ( T1 T2: Set) (rel_T :Related World T1 T2).
-  Variable (VAT1 : PL.ValueAlgebra T1) (VAT2 : PL.ValueAlgebra T2).
-  Variable (weaken : Related_Weakening acc rel_T).
+  Variable ( V1 V2: Set) (rel_V :Related World V1 V2).
+  Variable (VAT1 : PL.ValueAlgebra V1) (VAT2 : PL.ValueAlgebra V2).
+  Variable (weaken : Related_Weakening acc rel_V).
 
 
 
@@ -1434,12 +1440,12 @@ Lemma refl : forall w, acc w w.
                                         end
                       end.
 
-  Lemma Rel_option_weaken  (V1 V2: Set) (rel_V :Related World V1 V2) (weaken_V: Related_Weakening acc rel_V ) (w1 w2 : World) (o1 : option V1) (o2 : option V2) :
+  Lemma Rel_option_weaken (w1 w2 : World) (o1 : option V1) (o2 : option V2) :
     acc w1 w2 -> Rel_option rel_V w1 o1 o2 -> Rel_option rel_V w2 o1 o2.
-  Proof.
+  Proof using weaken.
     destruct o1 as [v1|].
      - destruct o2 as [v2|] .
-       -- unfold Rel_option. apply weaken_V.
+       -- unfold Rel_option. apply weaken.
        -- eauto.
     - eauto.
   Qed.
@@ -1461,15 +1467,15 @@ Definition Rel_Wstore ( V1 V2 A1 A2: Set) (rel_V :Related World V1 V2) (rel_A :R
   
 
 
-  Lemma Rel_Ret  (C1 C2 : Set) (w:World) (c1 : C1) (c2 : C2) (rel_C : Related World C1 C2) (rel_c : rel_C w c1 c2) : Rel_Wstore rel_T rel_C w (vcg.ret c1) (vcg.ret c2).
+  Lemma rel_Ret  (C1 C2 : Set) (w:World) (c1 : C1) (c2 : C2) (rel_C : Related World C1 C2) (rel_c : rel_C w c1 c2) : Rel_Wstore rel_V rel_C w (vcg.ret c1) (vcg.ret c2).
   repeat unfold Wf_Wstore,WfFunc,WfPost, WfProp, Box.
   intros post1 post2 Hpost store Hstore.
   eapply Hpost;eauto.
   Qed.
 
-  Lemma Rel_Bind  (C1 C2 B1 B2: Set) (rel_C : Related World C1 C2)  (rel_B :Related World B1 B2) 
-    (w:World) (c1 : vcg.Wstore T1 C1) (c2 : vcg.Wstore T2 C2) (k1 : C1->vcg.Wstore T1 B1) (k2 : C2->vcg.Wstore T2 B2) 
-    (Rel_c : Rel_Wstore rel_T rel_C w c1 c2) (wf_k : Box ( Rel_lift rel_T rel_C rel_B ) w k1 k2) : Rel_Wstore rel_T rel_B w (vcg.bind c1 k1) (vcg.bind c2 k2).
+  Lemma rel_Bind  (C1 C2 B1 B2: Set) (rel_C : Related World C1 C2)  (rel_B :Related World B1 B2) 
+    (w:World) (c1 : vcg.Wstore V1 C1) (c2 : vcg.Wstore V2 C2) (k1 : C1->vcg.Wstore V1 B1) (k2 : C2->vcg.Wstore V2 B2) 
+    (Rel_c : Rel_Wstore rel_V rel_C w c1 c2) (wf_k : Box ( Rel_lift rel_V rel_C rel_B ) w k1 k2) : Rel_Wstore rel_V rel_B w (vcg.bind c1 k1) (vcg.bind c2 k2).
     unfold vcg.bind.
     unfold Rel_Wstore.
     unfold Rel_Func.
@@ -1479,7 +1485,21 @@ Definition Rel_Wstore ( V1 V2 A1 A2: Set) (rel_V :Related World V1 V2) (rel_A :R
     eauto.
     Qed.
 
-
+    Lemma rel_lookupWstore  (w:World) (s : string)  : Rel_Wstore rel_V rel_V w (vcg.lookupWstore s) (vcg.lookupWstore s).
+  unfold vcg.lookupWstore.
+  unfold Rel_Wstore.
+  intros post1 post2 H store1 store2 wfStore .
+  
+  destruct (store1 !! s) eqn:HEQ1; destruct (store2 !! s) eqn:HEQ2;eauto.
+  - apply H;eauto.
+      specialize (wfStore s).
+      rewrite HEQ1, HEQ2 in wfStore. eauto.
+  -specialize (wfStore s).
+  rewrite HEQ1, HEQ2 in wfStore. contradiction.
+  -specialize (wfStore s).
+  rewrite HEQ1, HEQ2 in wfStore. contradiction.
+  - constructor.
+  Qed.
 
 
 
