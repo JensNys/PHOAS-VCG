@@ -1329,7 +1329,7 @@ Inductive rel_value_exp (Γ : stringmap PL.Value) : PL.Value -> PL.Exp -> Prop :
 Definition int_expr : Related (stringmap PL.Value) PL.Value PL.Exp :=
   fun world num exp => rel_value_exp world num exp.
 
-Class Related_VA (World : Set) (V1 V2:Set) (VA1 : PL.ValueAlgebra V1) ( VA2: PL.ValueAlgebra V2)
+Class Rel_VA (World : Set) (V1 V2:Set) (VA1 : PL.ValueAlgebra V1) ( VA2: PL.ValueAlgebra V2)
 (Rel_V: Related World V1 V2)  := {
     wf_lit : forall Γ n, Rel_V Γ (VA1.(PL.lit) n) (VA2.(PL.lit) n);
     wf_add : forall Γ v1 v2 v1' v2', Rel_V Γ v1 v2-> Rel_V Γ v1' v2' -> Rel_V Γ (VA1.(PL.add) v1 v1') (VA2.(PL.add) v2 v2');
@@ -1337,7 +1337,7 @@ Class Related_VA (World : Set) (V1 V2:Set) (VA1 : PL.ValueAlgebra V1) ( VA2: PL.
 
 
 
-Definition Related_Store (World : Set) (V1 V2 : Set)  (Rel_V :Related World V1 V2) : Related World (stringmap V1) (stringmap V2) :=
+Definition Rel_Store (World : Set) (V1 V2 : Set)  (Rel_V :Related World V1 V2) : Related World (stringmap V1) (stringmap V2) :=
     fun (w : World) (store1 : stringmap V1) (store2 : stringmap V2)
      =>
     forall s v1 v2, (store1 !! s = Some v1) -> (store2 !! s = Some v2) -> (Rel_V w v1 v2 ).
@@ -1391,16 +1391,22 @@ Section Related_props.
                   (VT1 : ValueAlgebra T1) (VT1 : ValueAlgebra T1)
                    (p1 : Phoas.Prop T1) (p1 : Phoas.Prop T2)
                    := World-> T1 -> Type.*)
-End Related.
 
 
+  Section Rels.
+  Variable (World : Set).
+  Variable (acc : relation World).
+  Variable  (pre : PreOrder acc).
+  Variable ( T1 T2: Set) (rel_T :Related World T1 T2).
+  Variable (VAT1 : PL.ValueAlgebra T1) (VAT2 : PL.ValueAlgebra T2).
+  Variable (weaken : Related_Weakening acc rel_T).
 
 
 
 Definition Rel_Func {World: Set} {A A' B B' : Set} (rel_A :Related World A A') (rel_B : Related World B B') : Related World (A -> B) (A' -> B') :=
 fun w f f'=> forall (a:A) (a':A'), rel_A w a a'-> rel_B w (f a) (f' a').
 
-Definition Box {World : Set} (acc : relation World) {T1 T2: Set} (rel_T : Related World T1 T2)  : Related World T1 T2 :=
+Definition Box   {T1 T2: Set} (rel_T : Related World T1 T2)  : Related World T1 T2 :=
   fun w t1 t2 => forall w' , acc w w' -> rel_T w' t1 t2 .
 
 
@@ -1415,9 +1421,67 @@ Delimit Scope rel_scope with R.
 
   Notation "□ A"    := (Box A%R) (at level 50, A at level 9): rel_scope.
 
+
+
   
  
+    
+  Definition Rel_prop  ( T1 T2: Set)  (rel_T :Related World T1 T2) : Related World (Phoas.prop T1) (Phoas.prop T2) :=
+    fun w p1 p2 =>   (rel_prop acc rel_T) w p1 p2.
 
+  Definition Rel_option   ( T1 T2: Set) (rel_T :Related World T1 T2) : Related World (option T1) (option T2) :=
+    fun w mt1 mt2 =>  match (mt1) with 
+                        | None => True
+                        | Some v1 => match (mt2) with 
+                                          | None => True
+                                          | Some v2 => rel_T w v1 v2
+                                        end
+                      end.
+
+  Lemma Rel_option_weaken  (V1 V2: Set) (rel_V :Related World V1 V2) (weaken_V: Related_Weakening acc rel_V ) (w1 w2 : World) (o1 : option V1) (o2 : option V2) :
+    acc w1 w2 -> Rel_option rel_V w1 o1 o2 -> Rel_option rel_V w2 o1 o2.
+  Proof.
+    destruct o1 as [v1|].
+     - destruct o2 as [v2|] .
+       -- unfold Rel_option. apply weaken_V.
+       -- eauto.
+    - eauto.
+  Qed.
+
+
+  Definition Rel_Post ( V1 V2 A1 A2: Set) (rel_A :Related World A1 A2) (rel_V :Related World V1 V2): Related World (A1->stringmap V1 → Phoas.prop V1) (A2->stringmap V2 → Phoas.prop V2) :=
+   rel_A  ↣ Rel_Store rel_V ↣ Rel_prop rel_V.
+
+
+Definition Rel_Wstore ( V1 V2 A1 A2: Set) (rel_V :Related World V1 V2) (rel_A :Related World A1 A2)  :  Related World (vcg.Wstore V1 A1) (vcg.Wstore V2 A2):=
+   (□ (Rel_Post rel_A rel_V)) ↣ (Rel_Store rel_V) ↣ (Rel_prop rel_V).
+
+
+
+  Definition Rel_lift ( V1 V2 A1 A2 B1 B2: Set) (rel_V :Related World V1 V2) (rel_A :Related World A1 A2)  (rel_B :Related World B1 B2) : (Related World (A1 -> vcg.Wstore V1 B1) (A2 -> vcg.Wstore V2 B2)) :=
+      rel_A ↣ (Rel_Wstore rel_V rel_B).
+
+
+  
+
+
+  Lemma Rel_Ret  (C1 C2 : Set) (w:World) (c1 : C1) (c2 : C2) (rel_C : Related World C1 C2) (rel_c : rel_C w c1 c2) : Rel_Wstore rel_T rel_C w (vcg.ret c1) (vcg.ret c2).
+  repeat unfold Wf_Wstore,WfFunc,WfPost, WfProp, Box.
+  intros post1 post2 Hpost store Hstore.
+  eapply Hpost;eauto.
+  reflexivity.
+  Qed.
+
+
+
+
+
+
+
+
+
+  End Rels.
+End Related.
   
 
 Section EndToEndSoundness.
