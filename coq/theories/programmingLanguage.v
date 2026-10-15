@@ -1314,6 +1314,8 @@ Inductive rel_value_exp (Γ : stringmap PL.Value) : PL.Value -> PL.Exp -> Prop :
 Definition int_exp : Related (stringmap PL.Value) PL.Value PL.Exp :=
   fun world num exp => rel_value_exp world num exp.
 
+  
+
  
 
 Class Rel_VA (World : Set) (V1 V2:Set) (VA1 : PL.ValueAlgebra V1) ( VA2: PL.ValueAlgebra V2)
@@ -1647,11 +1649,18 @@ Lemma rel_wp
   Admitted.
 
 
-Lemma rel_interp_to_va_default (store1 : stringmap V1) (store2 : stringmap V2) (e : PL.Exp)
+Lemma rel_interp_to_va_default (rel_VA : Rel_VA VAV1 VAV2 rel_V) (store1 : stringmap V1) (store2 : stringmap V2) (e : PL.Exp)
       (w : World) (rel_Store : Rel_Store rel_V w store1 store2 )  :
               rel_V w (PL.interp_to_va_default VAV1 store1 e) (PL.interp_to_va_default VAV2 store2 e).
 Admitted.
 
+
+Lemma rel_interp_to_va_crash (rel_VA : Rel_VA VAV1 VAV2 rel_V)
+      (store1 : stringmap V1) (store2 : stringmap V2) (e : PL.Exp)
+      (w : World) (rel_Store : Rel_Store rel_V w store1 store2) :
+      Rel_option rel_V w (PL.interp_to_va_crash VAV1 store1 e) (PL.interp_to_va_crash VAV2 store2 e).
+      Admitted.
+  
 
 
 
@@ -1749,14 +1758,56 @@ Inductive rel_hoas_foas : Related (stringmap PL.Value) Hoas.prop Foas.prop :=
 
   End Rels.
 
-  Theorem wf_vc_hoas_foas : forall (c : Foas.Contract), rel_hoas_foas empty (vcg.vc_hoas c) (vcg.vc_foas c).
+  Theorem wf_vc_hoas_foas : forall (c : Foas.Contract), rel_hoas_foas ∅ (vcg.vc_hoas c) (vcg.vc_foas c).
   intros c.
   
-  eapply rel_phoas_to_hoas_foas. (*phoas to foas*)
-  eapply (rel_vc _  rel_weaken_int_exp rel_va_int_exp). (*vc_foas*)
+  apply rel_phoas_to_hoas_foas. (*phoas to foas*)
+  apply (rel_vc _ rel_weaken_int_exp rel_va_int_exp). (*vc_foas*)
   apply (rel_foas_to_phoas_contract _ _ _ ∅ ∅ c rel_va_int_exp). (*foas to phoas contract*)
   Qed.
 
+
+  Lemma int_exp_interp_to_va_crash {Γ : stringmap PL.Value} {v : PL.Value} {e : PL.Exp} :
+  int_exp Γ v e -> PL.interp_to_va_crash PL.value_valueAlgebra Γ e = Some v.
+  Proof.
+    unfold int_exp.
+    intro Hrel.
+
+    induction Hrel;  simpl;eauto.
+    - rewrite IHHrel1, IHHrel2. reflexivity.
+  Qed.
+
+
+
+  
+  Lemma semant_hoas_foas_env (Γ : stringmap PL.Value) (hoas_prop : Hoas.prop) (foas_prop : Foas.prop) :
+  rel_hoas_foas Γ hoas_prop foas_prop ->
+  (Hoas.semant hoas_prop <-> Foas.semant' Γ foas_prop).
+Proof.
+
+intros Hrel.
+induction Hrel;intros;simpl.
+
+  - (* T *) reflexivity.
+  - (* F *) reflexivity.
+  - (* Implies *) rewrite IHHrel1, IHHrel2. reflexivity.
+  - (* And *) rewrite IHHrel1, IHHrel2. reflexivity.
+  - (* Or *) rewrite IHHrel1, IHHrel2. reflexivity.
+  - split; intros Hall v; apply H0, Hall.
+  - rewrite (int_exp_interp_to_va_crash H), (int_exp_interp_to_va_crash H0). reflexivity.
+Qed.
+
+(* if a hoas and foas proposition are related, then they are logically equivalent*)
+Lemma semant_hoas_foas  (hoas_prop : Hoas.prop) (foas_prop : Foas.prop) :
+  rel_hoas_foas empty hoas_prop foas_prop ->
+  (Hoas.semant hoas_prop <-> Foas.semant foas_prop).
+Proof.
+unfold Foas.semant.
+apply semant_hoas_foas_env.
+Qed.
+
+  
+  
 
 
 End Related.
