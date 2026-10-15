@@ -1148,15 +1148,17 @@ Qed.
     Qed.
 
 
-  Definition vc_hoas  (c : Phoas.Contract PL.Value) : Hoas.prop :=
-  Hoas.phoas_to_hoas (vc (PL.value_valueAlgebra) c).
+  Definition vc_hoas (c : Foas.Contract) : Hoas.prop :=
+  Hoas.phoas_to_hoas (vc (PL.value_valueAlgebra) ((Phoas.foas_contract_to_phoas_contract PL.value_valueAlgebra  ∅ c))).
   
   Definition vc_foas (c : Foas.Contract) : Foas.prop :=
   
   Phoas.phoas_to_foas ∅ (vc (PL.expression_valueAlgebra) (Phoas.foas_contract_to_phoas_contract PL.expression_valueAlgebra  ∅ c)).
 
 
-
+  Definition vc_just_hoas (c : Phoas.Contract PL.Value) : Hoas.prop :=
+  Hoas.phoas_to_hoas (vc (PL.value_valueAlgebra) c).
+  
 
 
 
@@ -1177,13 +1179,10 @@ Print Instances PreOrder.
 
 Theorem wf_vc_foas : forall (c : Foas.Contract), Foas.wfprop empty (vcg.vc_foas c).
   intros c.
-  destruct c.
   
-  unfold vcg.vc_foas.
   eapply Phoas.wf_phoas_to_foas. (*phoas to foas*)
-  -
-    eapply (vcg.wf_vc set_subseteq_preorder Phoas.weakening_wfe Phoas.WF_VA_exp). (*vc_foas*)
-    apply (Phoas.wf_foas_to_phoas_contract _ _ _ Phoas.WF_VA_exp Phoas.weakening_wfe). (*foas to phoas contract*)
+  eapply (vcg.wf_vc set_subseteq_preorder Phoas.weakening_wfe Phoas.WF_VA_exp). (*vc_foas*)
+  apply (Phoas.wf_foas_to_phoas_contract _ _ _ Phoas.WF_VA_exp Phoas.weakening_wfe). (*foas to phoas contract*)
 Qed.
 
 
@@ -1252,13 +1251,13 @@ Lemma wpWeakest : forall  (post : PL.Value->stringmap PL.Value->Phoas.prop PL.Va
 
 
 
-  Definition adequate (c : Phoas.Contract PL.Value) : Hoas.semant (vcg.vc_hoas c) ->  Hoas.contract_semant (Hoas.phoas_to_hoas_contract c).
+  Definition adequate (c : Phoas.Contract PL.Value) : Hoas.semant (vcg.vc_just_hoas c) ->  Hoas.contract_semant (Hoas.phoas_to_hoas_contract c).
   Proof.
   
   unfold Hoas.contract_semant.
   intros.
   (*intros.*)
-  unfold vcg.vc_hoas in H.
+  unfold vcg.vc_just_hoas in H.
   
   simpl in H.
   apply translation_irrelevance in H0.
@@ -1312,16 +1311,35 @@ Inductive rel_value_exp (Γ : stringmap PL.Value) : PL.Value -> PL.Exp -> Prop :
   rel_value_exp Γ v2 e2 ->
   rel_value_exp Γ (Z.add v1 v2) (PL.Add e1 e2).
 
-Definition int_expr : Related (stringmap PL.Value) PL.Value PL.Exp :=
+Definition int_exp : Related (stringmap PL.Value) PL.Value PL.Exp :=
   fun world num exp => rel_value_exp world num exp.
 
  
 
 Class Rel_VA (World : Set) (V1 V2:Set) (VA1 : PL.ValueAlgebra V1) ( VA2: PL.ValueAlgebra V2)
 (Rel_V: Related World V1 V2)  := {
-    wf_lit : forall Γ n, Rel_V Γ (VA1.(PL.lit) n) (VA2.(PL.lit) n);
-    wf_add : forall Γ v1 v2 v1' v2', Rel_V Γ v1 v2-> Rel_V Γ v1' v2' -> Rel_V Γ (VA1.(PL.add) v1 v1') (VA2.(PL.add) v2 v2');
+    rel_lit : forall Γ n, Rel_V Γ (VA1.(PL.lit) n) (VA2.(PL.lit) n);
+    rel_add : forall Γ v1 v2 v1' v2', Rel_V Γ v1 v2-> Rel_V Γ v1' v2' -> Rel_V Γ (VA1.(PL.add) v1 v1') (VA2.(PL.add) v2 v2');
 }.
+Definition rel_lit_int_exp : forall Γ n, int_exp Γ (PL.value_valueAlgebra.(PL.lit) n) (PL.expression_valueAlgebra.(PL.lit) n).
+Proof.
+intros.
+constructor.
+Qed. 
+Definition rel_add_int_exp : forall Γ v1 v2 v1' v2', int_exp Γ v1 v2-> int_exp Γ v1' v2' -> int_exp Γ (PL.value_valueAlgebra.(PL.add) v1 v1') (PL.expression_valueAlgebra.(PL.add) v2 v2').
+Proof.
+intros. 
+constructor; [apply H |apply H0].
+Qed.
+
+
+
+Instance rel_va_int_exp : Rel_VA  (PL.value_valueAlgebra) (PL.expression_valueAlgebra) int_exp:=
+  {
+  rel_lit := rel_lit_int_exp;
+  rel_add := rel_add_int_exp
+  
+  }.
 
 
 
@@ -1339,6 +1357,22 @@ Definition Rel_Store (World : Set) (V1 V2 : Set)  (Rel_V :Related World V1 V2) :
 Class Related_Weakening (V1 V2:Set)  (World: Set) (Acc: relation World) (Rel_V: Related World V1 V2) := {
     weaken : forall (Γ Γ' : World) (v1:V1) (v2:V2), Acc Γ Γ' -> Rel_V Γ v1 v2 -> Rel_V Γ' v1 v2 
 }.
+Search stringmap.
+Definition weaken_int_exp  : forall (Γ Γ' : stringmap PL.Value) (v1:PL.Value) (v2:PL.Exp), subseteq Γ Γ' -> int_exp Γ v1 v2 -> int_exp Γ' v1 v2 .
+Proof.
+intros Γ Γ' v1 v2 Hsub Hrel.
+unfold int_exp in *.
+induction Hrel .
+- constructor.
+- (* a lookup that succeeds in Γ also succeeds in the larger Γ' *)
+  constructor. eapply lookup_weaken; eauto.
+- constructor; eauto.
+Qed.
+Instance rel_weaken_int_exp : Related_Weakening subseteq int_exp:=
+{
+  weaken := weaken_int_exp
+  
+  }.
 
 Section Related_props.
 
@@ -1652,10 +1686,79 @@ induction foasprop; intros store1 store2 w rel_Store; simpl.
     destruct Hweaken .
     eapply (weaken0 w w' a1 a2 Hacc rel_Store); auto.
 Qed.
+
+Lemma rel_foas_to_phoas_contract 
+    (w : World)
+    (store1 : stringmap V1)
+    (store2 : stringmap V2)
+    (c : Foas.Contract) 
+    (wfE' : Rel_VA VAV1 VAV2 rel_V)
+    :
+    
+    rel_Contract w
+      (Phoas.foas_contract_to_phoas_contract VAV1 store1 c) (Phoas.foas_contract_to_phoas_contract VAV2 store2 c).
+Admitted.
+
+
+Inductive rel_hoas_foas : Related (stringmap PL.Value) Hoas.prop Foas.prop :=
+| RHF_T Γ : rel_hoas_foas Γ Hoas.T Foas.T
+| RHF_F Γ : rel_hoas_foas Γ Hoas.F Foas.F
+| RHF_Implies Γ l1 r1 l2 r2 :
+    rel_hoas_foas Γ l1 l2 -> rel_hoas_foas Γ r1 r2 ->
+    rel_hoas_foas Γ (Hoas.Implies l1 r1) (Foas.Implies l2 r2)
+| RHF_And Γ l1 r1 l2 r2 :
+    rel_hoas_foas Γ l1 l2 -> rel_hoas_foas Γ r1 r2 ->
+    rel_hoas_foas Γ (Hoas.And l1 r1) (Foas.And l2 r2)
+| RHF_Or Γ l1 r1 l2 r2 :
+    rel_hoas_foas Γ l1 l2 -> rel_hoas_foas Γ r1 r2 ->
+    rel_hoas_foas Γ (Hoas.Or l1 r1) (Foas.Or l2 r2)
+| RHF_Forall Γ (f : PL.Value -> Hoas.prop) (x : string) (body : Foas.prop) :
+    (forall v, rel_hoas_foas (<[x := v]> Γ) (f v) body) ->
+    rel_hoas_foas Γ (Hoas.Forall f) (Foas.Forall x body)
+| RHF_Cmp Γ r (a b : PL.Value) (e1 e2 : PL.Exp) :
+    int_exp Γ a e1 -> int_exp Γ b e2 ->
+    rel_hoas_foas Γ (Hoas.Cmp r a b) (Foas.Cmp r e1 e2).
+
+
+
+
+  
+  Lemma rel_phoas_to_hoas_foas  (Γ : stringmap PL.Value) (p1 : Phoas.prop (PL.Value)) (p2 : Phoas.prop (PL.Exp)) 
+  (relp : @rel_prop (stringmap PL.Value) subseteq (PL.Value) (PL.Exp) int_exp Γ p1 p2) :
+    rel_hoas_foas Γ (Hoas.phoas_to_hoas p1) (Phoas.phoas_to_foas (dom Γ) p2).
+  Proof. 
+    induction relp; cbn.
+    - constructor.
+    - constructor.
+    - constructor; auto.
+    - constructor; auto.
+    - constructor; auto.
+    - constructor. admit. (*
+    apply H0.
+      + set_solver.
+      + constructor.
+      set_solver.
+    *)
+    - constructor; auto.
+  Admitted.
+
   
 
 
+
+
   End Rels.
+
+  Theorem wf_vc_hoas_foas : forall (c : Foas.Contract), rel_hoas_foas empty (vcg.vc_hoas c) (vcg.vc_foas c).
+  intros c.
+  
+  eapply rel_phoas_to_hoas_foas. (*phoas to foas*)
+  eapply (rel_vc _  rel_weaken_int_exp rel_va_int_exp). (*vc_foas*)
+  apply (rel_foas_to_phoas_contract _ _ _ ∅ ∅ c rel_va_int_exp). (*foas to phoas contract*)
+  Qed.
+
+
+
 End Related.
   
 
