@@ -395,11 +395,13 @@ induction e; simpl.
 - apply wf_add; auto.
 Qed.
 
+
 Lemma wf_foas_to_phoas (World : Set) (V:Set) (VA: PL.ValueAlgebra V) (store : stringmap V)  (foasprop : Foas.prop) 
-      (acc: relation World) (context : World) WA  
+      (acc: relation World) (context : World) (WA : WF World V)  
        (wfStore : WfStore WA context store ) (X : WF_VA VA WA) (Hweaken : Weakening  acc WA)
        : 
               @wfprop World acc V WA context (@foas_to_phoas V VA store foasprop).
+
 Proof.
 revert store context wfStore.
 induction foasprop; intros store context wfStore; simpl.
@@ -1608,9 +1610,49 @@ Lemma rel_wp
    (rel_VA : Rel_VA VAV1 VAV2 rel_V) (c1 : Phoas.Contract V1) (c2 : Phoas.Contract V2) (w : World): 
     rel_Contract w c1 c2 ->
     Rel_prop rel_V w (vcg.vc VAV1 c1) (vcg.vc VAV2 c2).
+  Admitted.
+
+
+Lemma rel_interp_to_va_default (store1 : stringmap V1) (store2 : stringmap V2) (e : PL.Exp)
+      (w : World) (rel_Store : Rel_Store rel_V w store1 store2 )  :
+              rel_V w (PL.interp_to_va_default VAV1 store1 e) (PL.interp_to_va_default VAV2 store2 e).
+Admitted.
 
 
 
+
+Lemma rel_foas_to_phoas  (store1 : stringmap V1) (store2 : stringmap V2) (foasprop : Foas.prop) 
+      (w : World) 
+       (rel_Store : Rel_Store rel_V w store1 store2 ) (rel_VA : Rel_VA  VAV1 VAV2 rel_V) (Hweaken : Related_Weakening  acc rel_V)
+       : 
+              @rel_prop World acc V1 V2 rel_V w (@Phoas.foas_to_phoas V1 VAV1 store1 foasprop) (@Phoas.foas_to_phoas V2 VAV2 store2 foasprop).
+Proof using V1 V2 VAV1 VAV2 World acc pre rel_V weaken.
+revert store1 store2 w rel_Store.
+induction foasprop; intros store1 store2 w rel_Store; simpl.
+- constructor.
+- constructor.
+- constructor; eapply rel_interp_to_va_default; eauto.
+- constructor; auto.
+- constructor; auto.
+- constructor; auto.
+- constructor. intros v1 v2 w' Hacc Hrelv.
+  apply IHfoasprop.
+  unfold Rel_Store.
+  intros s .
+  destruct (decide (s = x)) as [-> | Hne].
+  + 
+   rewrite lookup_insert_eq .
+   rewrite lookup_insert_eq .
+   eauto.
+  + rewrite lookup_insert_ne  by congruence.
+    rewrite lookup_insert_ne  by congruence.
+
+    specialize (rel_Store s).
+    destruct (store1 !! s) as [a1|], (store2 !! s) as [a2|]; try contradiction; auto.
+    destruct Hweaken .
+    eapply (weaken0 w w' a1 a2 Hacc rel_Store); auto.
+Qed.
+  
 
 
   End Rels.
