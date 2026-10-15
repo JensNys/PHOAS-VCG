@@ -1152,15 +1152,18 @@ Qed.
   Hoas.phoas_to_hoas (vc (PL.value_valueAlgebra) ((Phoas.foas_contract_to_phoas_contract PL.value_valueAlgebra  ∅ c))).
   
   Definition vc_foas (c : Foas.Contract) : Foas.prop :=
-  
   Phoas.phoas_to_foas ∅ (vc (PL.expression_valueAlgebra) (Phoas.foas_contract_to_phoas_contract PL.expression_valueAlgebra  ∅ c)).
 
 
   Definition vc_just_hoas (c : Phoas.Contract PL.Value) : Hoas.prop :=
   Hoas.phoas_to_hoas (vc (PL.value_valueAlgebra) c).
   
-
-
+  Lemma vc_hoas_unfold: forall (c  : Foas.Contract ), vc_hoas c = vc_just_hoas (Phoas.foas_contract_to_phoas_contract PL.value_valueAlgebra  ∅ c).
+  Proof.
+  intros. 
+  reflexivity.
+  Qed. 
+  
 
 
 End WFs.
@@ -1199,7 +1202,7 @@ End well_formed_generation.
 
 
 
-  Section hoasProof.
+  Section Hoas_Sound.
 
 
   
@@ -1251,7 +1254,8 @@ Lemma wpWeakest : forall  (post : PL.Value->stringmap PL.Value->Phoas.prop PL.Va
 
 
 
-  Definition adequate (c : Phoas.Contract PL.Value) : Hoas.semant (vcg.vc_just_hoas c) ->  Hoas.contract_semant (Hoas.phoas_to_hoas_contract c).
+  Definition adequate (c : Phoas.Contract PL.Value) :
+   Hoas.semant (vcg.vc_just_hoas c) ->  Hoas.contract_semant (Hoas.phoas_to_hoas_contract c).
   Proof.
   
   unfold Hoas.contract_semant.
@@ -1292,7 +1296,7 @@ Lemma wpWeakest : forall  (post : PL.Value->stringmap PL.Value->Phoas.prop PL.Va
 
   Qed.
   
-  End hoasProof.
+  End Hoas_Sound.
   
 
 
@@ -1730,7 +1734,6 @@ Inductive rel_hoas_foas : Related (stringmap PL.Value) Hoas.prop Foas.prop :=
 
 
 
-
   
   Lemma rel_phoas_to_hoas_foas  (Γ : stringmap PL.Value) (p1 : Phoas.prop (PL.Value)) (p2 : Phoas.prop (PL.Exp)) 
   (relp : @rel_prop (stringmap PL.Value) subseteq (PL.Value) (PL.Exp) int_exp Γ p1 p2) :
@@ -1806,35 +1809,29 @@ unfold Foas.semant.
 apply semant_hoas_foas_env.
 Qed.
 
-(* hoas props imply foas props*)
-Lemma semant_hoas_foas_imp  (hoas_prop : Hoas.prop) (foas_prop : Foas.prop) :
-  rel_hoas_foas empty hoas_prop foas_prop ->
-  (Hoas.semant hoas_prop -> Foas.semant foas_prop).
-Proof.
-apply semant_hoas_foas.
-Qed.
-(* hoas props imply foas props*)
-Lemma semant_hoas_foas_imp'  (hoas_prop : Hoas.prop) (foas_prop : Foas.prop) :
-  rel_hoas_foas empty hoas_prop foas_prop ->
-  (Foas.semant foas_prop->Hoas.semant hoas_prop ).
-Proof.
-apply semant_hoas_foas.
-Qed.
-
-  
-  
-
-
 End Related.
   
 
 Section Soundness.
 
+(* translating a Foas contract to a Hoas contract preserves its semantics *)
+Lemma contract_translation_preserves_semantics (c : Foas.Contract) : Hoas.contract_semant (Hoas.phoas_to_hoas_contract (Phoas.foas_contract_to_phoas_contract PL.value_valueAlgebra empty c)) -> Foas.contract_semant c .
+Admitted.
+
 
 Theorem hoas_adequate (c : Foas.Contract) : 
       Hoas.semant (vcg.vc_hoas c) ->  Foas.contract_semant c.
 Proof.
-Admitted.
+intros.
+rewrite vcg.vc_hoas_unfold in *.
+pose proof (adequate) as Hadequate.
+pose proof (contract_translation_preserves_semantics) as Hpreserve.
+apply (Hpreserve c).
+specialize (Hadequate (Phoas.foas_contract_to_phoas_contract
+PL.value_valueAlgebra ∅ c)) .
+apply Hadequate.
+exact H.
+Qed.
 
 
 (* 
@@ -1845,11 +1842,11 @@ Theorem foas_adequate (c : Foas.Contract) :
 Proof.
 intros Foas_semant.
 pose proof (wf_vc_hoas_foas c) as Hrelated.
-pose proof (semant_hoas_foas_imp' Hrelated) as Hsemant_equivalent.
+pose proof (semant_hoas_foas Hrelated) as Hsemant_equivalent.
 pose proof (@hoas_adequate c) as HoasSound.
 
-specialize (Hsemant_equivalent Foas_semant).
-specialize (HoasSound Hsemant_equivalent)  .
+apply Hsemant_equivalent in Foas_semant.   
+specialize (HoasSound Foas_semant).
 exact HoasSound.
 
 Qed.
