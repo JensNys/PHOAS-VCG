@@ -1806,6 +1806,21 @@ unfold Foas.semant.
 apply semant_hoas_foas_env.
 Qed.
 
+(* hoas props imply foas props*)
+Lemma semant_hoas_foas_imp  (hoas_prop : Hoas.prop) (foas_prop : Foas.prop) :
+  rel_hoas_foas empty hoas_prop foas_prop ->
+  (Hoas.semant hoas_prop -> Foas.semant foas_prop).
+Proof.
+apply semant_hoas_foas.
+Qed.
+(* hoas props imply foas props*)
+Lemma semant_hoas_foas_imp'  (hoas_prop : Hoas.prop) (foas_prop : Foas.prop) :
+  rel_hoas_foas empty hoas_prop foas_prop ->
+  (Foas.semant foas_prop->Hoas.semant hoas_prop ).
+Proof.
+apply semant_hoas_foas.
+Qed.
+
   
   
 
@@ -1813,20 +1828,32 @@ Qed.
 End Related.
   
 
-Section EndToEndSoundness.
+Section Soundness.
 
 
-
+Theorem hoas_adequate (c : Foas.Contract) : 
+      Hoas.semant (vcg.vc_hoas c) ->  Foas.contract_semant c.
+Proof.
+Admitted.
 
 
 (* 
 If the verification condition is true, running the program with the right precondition will yield a result with the right postcondition.
 *)
-Definition foas_adequate (c : Foas.Contract) : 
+Theorem foas_adequate (c : Foas.Contract) : 
       Foas.semant (vcg.vc_foas c) ->  Foas.contract_semant c.
 Proof.
-Admitted.
+intros Foas_semant.
+pose proof (wf_vc_hoas_foas c) as Hrelated.
+pose proof (semant_hoas_foas_imp' Hrelated) as Hsemant_equivalent.
+pose proof (@hoas_adequate c) as HoasSound.
+
+specialize (Hsemant_equivalent Foas_semant).
+specialize (HoasSound Hsemant_equivalent)  .
+exact HoasSound.
+
+Qed.
 
 
 
-End EndToEndSoundness.
+End Soundness.
