@@ -1207,7 +1207,7 @@ End well_formed_generation.
 
   
 
-
+(*wp is the weakest of the preconditions, this lemma is not needed.*)
 Lemma wpWeakest : forall  (post : PL.Value->stringmap PL.Value->Phoas.prop PL.Value) (stm : PL.Stm) (pre : Phoas.prop PL.Value) (initStore :  stringmap PL.Value) result endmap,       
   
   (Phoas.semant pre -> PL.evalStm initStore stm (result,endmap)-> Phoas.semant (post result endmap)) (*if pre is a precondition*)
@@ -1219,6 +1219,9 @@ Lemma wpWeakest : forall  (post : PL.Value->stringmap PL.Value->Phoas.prop PL.Va
   
 
 
+  (*wp is a precondition*)
+  (* If the generated weakest precondition holds, running the program will yield a result for wich the postcondition holds.  *)
+  (* It might be better to prove this for wp with arbitrary input and map and applying here for a better induction hypothesis  *)
   Lemma wpPreconditionHoas : forall  (post : PL.Value->Hoas.prop) (stm : PL.Stm)  (inp : PL.Value) (arg : string) result fname,       
   (Phoas.semant (vcg.wp PL.value_valueAlgebra stm (vcg.ignore_map (Hoas.hoas_to_phoas ∘  post)) {[arg := inp]})) 
   ->
@@ -1526,14 +1529,14 @@ Definition Rel_Wstore ( V1 V2 A1 A2: Set) (rel_V :Related World V1 V2) (rel_A :R
 
 
   Lemma rel_Ret  (C1 C2 : Set) (w:World) (c1 : C1) (c2 : C2) (rel_C : Related World C1 C2) (rel_c : rel_C w c1 c2) : Rel_Wstore rel_V rel_C w (vcg.ret c1) (vcg.ret c2).
-  repeat unfold Wf_Wstore,WfFunc,WfPost, WfProp, Box.
+
   intros post1 post2 Hpost store Hstore.
   eapply Hpost;eauto.
   Qed.
 
   Lemma rel_Bind  (C1 C2 B1 B2: Set) (rel_C : Related World C1 C2)  (rel_B :Related World B1 B2) 
     (w:World) (c1 : vcg.Wstore V1 C1) (c2 : vcg.Wstore V2 C2) (k1 : C1->vcg.Wstore V1 B1) (k2 : C2->vcg.Wstore V2 B2) 
-    (Rel_c : Rel_Wstore rel_V rel_C w c1 c2) (wf_k : Box ( Rel_lift rel_V rel_C rel_B ) w k1 k2) : Rel_Wstore rel_V rel_B w (vcg.bind c1 k1) (vcg.bind c2 k2).
+    (Rel_c : Rel_Wstore rel_V rel_C w c1 c2) (rel_k : Box ( Rel_lift rel_V rel_C rel_B ) w k1 k2) : Rel_Wstore rel_V rel_B w (vcg.bind c1 k1) (vcg.bind c2 k2).
     unfold vcg.bind.
     unfold Rel_Wstore.
     unfold Rel_Func.
@@ -1630,7 +1633,7 @@ Lemma rel_exec_exp
       : Rel_Wstore rel_V rel_V w (vcg.exec_exp VAV1 e) (vcg.exec_exp VAV2 e).
   Admitted.
 
-Lemma wf_exec_stm  
+Lemma rel_exec_stm  
   (rel_VA : Rel_VA VAV1 VAV2 rel_V) (stm : PL.Stm)  
     (w:World) 
       : Rel_Wstore rel_V rel_V w (vcg.exec_stm VAV1 stm) (vcg.exec_stm VAV2 stm).
@@ -1639,11 +1642,11 @@ Admitted.
 Lemma rel_wp
   (rel_VA : Rel_VA VAV1 VAV2 rel_V) (stm : PL.Stm)
     (w:World) (post1 : V1 -> stringmap V1 -> Phoas.prop V1) (post2 : V2 -> stringmap V2 -> Phoas.prop V2)  (initStore1 : stringmap V1) (initStore2 : stringmap V2)
-      (Rel_post : (□ (Rel_Post rel_V rel_V)) w post1 post2) (WfinitStore : Rel_Store rel_V w initStore1 initStore2)
+      (Rel_post : (□ (Rel_Post rel_V rel_V)) w post1 post2) (Rel_initStore : Rel_Store rel_V w initStore1 initStore2)
       : Rel_prop rel_V w (vcg.wp VAV1 stm post1 initStore1) (vcg.wp VAV2 stm post2 initStore2).
   Proof using pre weaken.
     unfold vcg.wp.
-    eapply wf_exec_stm; eauto.
+    eapply rel_exec_stm; eauto.
   Qed.
 
   Lemma rel_vc
@@ -1705,7 +1708,7 @@ Lemma rel_foas_to_phoas_contract
     (store1 : stringmap V1)
     (store2 : stringmap V2)
     (c : Foas.Contract) 
-    (wfE' : Rel_VA VAV1 VAV2 rel_V)
+    (rel_VA :  Rel_VA VAV1 VAV2 rel_V)
     :
     
     rel_Contract w
@@ -1761,7 +1764,7 @@ Inductive rel_hoas_foas : Related (stringmap PL.Value) Hoas.prop Foas.prop :=
 
   End Rels.
 
-  Theorem wf_vc_hoas_foas : forall (c : Foas.Contract), rel_hoas_foas ∅ (vcg.vc_hoas c) (vcg.vc_foas c).
+  Theorem rel_vc_hoas_foas : forall (c : Foas.Contract), rel_hoas_foas ∅ (vcg.vc_hoas c) (vcg.vc_foas c).
   intros c.
   
   apply rel_phoas_to_hoas_foas. (*phoas to foas*)
@@ -1841,7 +1844,7 @@ Theorem foas_adequate (c : Foas.Contract) :
       Foas.semant (vcg.vc_foas c) ->  Foas.contract_semant c.
 Proof.
 intros Foas_semant.
-pose proof (wf_vc_hoas_foas c) as Hrelated.
+pose proof (rel_vc_hoas_foas c) as Hrelated.
 pose proof (semant_hoas_foas Hrelated) as Hsemant_equivalent.
 pose proof (@hoas_adequate c) as HoasSound.
 
