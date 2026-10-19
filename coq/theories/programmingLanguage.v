@@ -1219,6 +1219,13 @@ Lemma wpWeakest : forall  (post : PL.Value->stringmap PL.Value->Phoas.prop PL.Va
   
 
 
+  
+
+
+
+
+
+
   (*wp is a precondition*)
   (* If the generated weakest precondition holds, running the program will yield a result for wich the postcondition holds.  *)
   (* It might be better to prove this for wp with arbitrary input and map and applying here for a better induction hypothesis  *)
@@ -1227,12 +1234,6 @@ Lemma wpWeakest : forall  (post : PL.Value->stringmap PL.Value->Phoas.prop PL.Va
   ->
   (PL.evalProg (PL.Fun fname arg stm ) inp result)-> Hoas.semant (post result ). Admitted. (*if pre is a precondition*)
   
-
-
-
-
-
-
 
 
 
@@ -1283,7 +1284,7 @@ Lemma wpWeakest : forall  (post : PL.Value->stringmap PL.Value->Phoas.prop PL.Va
 
   pose proof (@wpPreconditionHoas (post inp) body inp param result functionName) as Hwp.
   intros.
-  apply Hwp.
+  apply (Hwp).
   - intros. apply H in H1.
     unfold "∘".
     pose proof (Hoas.preserves_semantics (vcg.wp PL.value_valueAlgebra body
@@ -1851,7 +1852,6 @@ pose proof (@hoas_adequate c) as HoasSound.
 apply Hsemant_equivalent in Foas_semant.   
 specialize (HoasSound Foas_semant).
 exact HoasSound.
-
 Qed.
 
 
