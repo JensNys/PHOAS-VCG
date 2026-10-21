@@ -1620,14 +1620,13 @@ Lemma rel_insertWstore  (w:World) (varname : string) (v1:V1) (v2: V2) (rel_v : r
 
 
 Lemma rel_restoreWstore  (w:World) (varname : string) (opt_v1:option V1) (opt_v2:option V2) (rel_opt : (Rel_option rel_V) w opt_v1 opt_v2) : Rel_Wstore rel_V rel_unit w (vcg.restoreWstore varname opt_v1) (vcg.restoreWstore varname opt_v2).
- Proof.
+ Proof using V1 V2 World acc pre rel_V.
   destruct opt_v1 as [v1|];destruct opt_v2 as [v2|]; simpl in *. 
   - apply rel_insertWstore.  exact rel_opt.
-  - apply rel_opt.
-   admit.
-  - admit.
+  - contradiction.
+  - contradiction.
   - apply rel_deleteWstore.
-  Admitted.
+  Qed.
 
 Lemma rel_exec_exp  
   (rel_VA : Rel_VA VAV1 VAV2 rel_V) (e : PL.Exp)  
