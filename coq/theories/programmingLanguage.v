@@ -1603,14 +1603,12 @@ Lemma rel_insertWstore  (w:World) (varname : string) (v1:V1) (v2: V2) (rel_v : r
   intros post1 post2 Hpost store1 store2 rel_Store.
   specialize (Hpost w (refl w) tt tt I ).
   apply Hpost.
-  Admitted.
-  (*
-  intros s v' v'' Hlookup.
+  intros s .
   destruct (decide (s = varname)) as [-> | Hne].
-  - rewrite lookup_delete_eq in Hlookup. discriminate. 
-  -  rewrite lookup_delete_ne in Hlookup;eauto.
+  - rewrite lookup_delete_eq . rewrite lookup_delete_eq . reflexivity. 
+  -  rewrite lookup_delete_ne;eauto. rewrite lookup_delete_ne;eauto. apply rel_Store.
   Qed.
-  *)
+  
 
 
 
