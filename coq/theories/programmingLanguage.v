@@ -1481,9 +1481,12 @@ Lemma refl : forall w, acc w w.
 
   Definition Rel_option   ( T1 T2: Set) (rel_T :Related World T1 T2) : Related World (option T1) (option T2) :=
     fun w mt1 mt2 =>  match (mt1) with 
-                        | None => True
-                        | Some v1 => match (mt2) with 
+                        | None => match (mt2) with 
                                           | None => True
+                                          | Some v2 => False
+                                        end
+                        | Some v1 => match (mt2) with 
+                                          | None => False
                                           | Some v2 => rel_T w v1 v2
                                         end
                       end.
@@ -1576,8 +1579,10 @@ Definition Rel_Wstore ( V1 V2 A1 A2: Set) (rel_V :Related World V1 V2) (rel_A :R
   unfold Rel_option.
   
   destruct (store1 !! s) eqn:Heq1 ;destruct (store2 !! s) eqn:Heq2 ;eauto.
-  specialize (rel_Store s).
+  - specialize (rel_Store s).
   rewrite Heq1, Heq2 in rel_Store. eauto.
+  - specialize (rel_Store s). rewrite Heq1 in rel_Store. rewrite Heq2 in rel_Store. apply rel_Store. 
+  - specialize (rel_Store s). rewrite Heq1 in rel_Store. rewrite Heq2 in rel_Store. apply rel_Store. 
   Qed.
 
 Lemma rel_insertWstore  (w:World) (varname : string) (v1:V1) (v2: V2) (rel_v : rel_V w v1 v2) :  (Rel_Wstore rel_V rel_unit w (vcg.insertWstore varname v1) (vcg.insertWstore varname v2)).
@@ -1618,7 +1623,8 @@ Lemma rel_restoreWstore  (w:World) (varname : string) (opt_v1:option V1) (opt_v2
  Proof.
   destruct opt_v1 as [v1|];destruct opt_v2 as [v2|]; simpl in *. 
   - apply rel_insertWstore.  exact rel_opt.
-  - admit.
+  - apply rel_opt.
+   admit.
   - admit.
   - apply rel_deleteWstore.
   Admitted.
