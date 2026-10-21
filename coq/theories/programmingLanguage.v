@@ -1390,7 +1390,7 @@ Section Related_props.
 
     Variable (A1 A2 : Set).
     Variable (Rel_A :Related World A1 A2).
-    Variable (weaken : Related_Weakening Acc Rel_A).
+    Variable (Hweaken : Related_Weakening Acc Rel_A).
     Inductive rel_prop (w : World) : Phoas.prop A1 -> Phoas.prop A2 -> Prop :=
       | RelT : rel_prop w (Phoas.T A1) (Phoas.T A2)
       | RelF : rel_prop w (Phoas.F A1) (Phoas.F A2)
@@ -1438,7 +1438,7 @@ Section Related_props.
   Variable  (pre : PreOrder acc).
   Variable ( V1 V2: Set) (rel_V :Related World V1 V2).
   Variable (VAV1 : PL.ValueAlgebra V1) (VAV2 : PL.ValueAlgebra V2).
-  Variable (weaken : Related_Weakening acc rel_V).
+  Variable (Hweaken : Related_Weakening acc rel_V).
 
 
 
@@ -1493,10 +1493,10 @@ Lemma refl : forall w, acc w w.
 
   Lemma Rel_option_weaken (w1 w2 : World) (o1 : option V1) (o2 : option V2) :
     acc w1 w2 -> Rel_option rel_V w1 o1 o2 -> Rel_option rel_V w2 o1 o2.
-  Proof using weaken.
+  Proof using Hweaken.
     destruct o1 as [v1|].
      - destruct o2 as [v2|] .
-       -- unfold Rel_option. apply weaken.
+       -- unfold Rel_option. apply Hweaken.
        -- eauto.
     - eauto.
   Qed.
@@ -1581,8 +1581,8 @@ Definition Rel_Wstore ( V1 V2 A1 A2: Set) (rel_V :Related World V1 V2) (rel_A :R
   destruct (store1 !! s) eqn:Heq1 ;destruct (store2 !! s) eqn:Heq2 ;eauto.
   - specialize (rel_Store s).
   rewrite Heq1, Heq2 in rel_Store. eauto.
-  - specialize (rel_Store s). rewrite Heq1 in rel_Store. rewrite Heq2 in rel_Store. apply rel_Store. 
-  - specialize (rel_Store s). rewrite Heq1 in rel_Store. rewrite Heq2 in rel_Store. apply rel_Store. 
+  - specialize (rel_Store s). rewrite Heq1 in rel_Store. rewrite Heq2 in rel_Store. contradiction.
+  - specialize (rel_Store s). rewrite Heq1 in rel_Store. rewrite Heq2 in rel_Store. contradiction. 
   Qed.
 
 Lemma rel_insertWstore  (w:World) (varname : string) (v1:V1) (v2: V2) (rel_v : rel_V w v1 v2) :  (Rel_Wstore rel_V rel_unit w (vcg.insertWstore varname v1) (vcg.insertWstore varname v2)).
@@ -1632,7 +1632,28 @@ Lemma rel_exec_exp
   (rel_VA : Rel_VA VAV1 VAV2 rel_V) (e : PL.Exp)  
     (w:World) 
       : Rel_Wstore rel_V rel_V w (vcg.exec_exp VAV1 e) (vcg.exec_exp VAV2 e).
-  Admitted.
+  Proof using pre Hweaken.
+  
+   revert w.
+   induction e;
+   intros w post1 post2 Hpost store1 store2 rel_Store .
+
+    (*Lit*)
+   - simpl. eapply Hpost;eauto.  
+    apply rel_lit.
+    (*Var*)
+   - simpl. eapply rel_lookupWstore; eauto.
+   (*Add*)
+   - simpl.  eapply rel_Bind;eauto. 
+    intros w' Hacc x1 x2 Hx.
+    eapply rel_Bind with (rel_C := rel_V).
+    -- apply IHe2.
+    --  intros w'' Hacc' x1' x2' Hx'.
+        eapply rel_Ret.
+        apply rel_add.
+        ---  destruct Hweaken. eapply (weaken w' w'' x1 x2 Hacc' Hx).
+        --- eauto.
+   Qed.
 
 Lemma rel_exec_stm  
   (rel_VA : Rel_VA VAV1 VAV2 rel_V) (stm : PL.Stm)  
