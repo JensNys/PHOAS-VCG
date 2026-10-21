@@ -1588,14 +1588,11 @@ Lemma rel_insertWstore  (w:World) (varname : string) (v1:V1) (v2: V2) (rel_v : r
   apply Hpost.
   intros s.
   destruct (decide (s = varname)) as [-> | Hne1].
-
-  (*
-  - rewrite lookup_insert_eq in Hlookup. injection Hlookup. intro veq. rewrite  <- veq. exact wf_v.
-  -  rewrite lookup_insert_ne in Hlookup;eauto.
+  - rewrite lookup_insert_eq . rewrite lookup_insert_eq .  exact rel_v.
+  - rewrite lookup_insert_ne;eauto. rewrite lookup_insert_ne;eauto. apply rel_Store.
   Qed.
-  *)
-  Admitted.
-  
+
+ 
 
 
 
