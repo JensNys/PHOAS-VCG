@@ -1659,7 +1659,27 @@ Lemma rel_exec_stm
   (rel_VA : Rel_VA VAV1 VAV2 rel_V) (stm : PL.Stm)  
     (w:World) 
       : Rel_Wstore rel_V rel_V w (vcg.exec_stm VAV1 stm) (vcg.exec_stm VAV2 stm).
-Admitted.
+revert w.
+      induction stm; intros w;simpl.
+      - apply rel_exec_exp;eauto.
+      - eapply rel_Bind.
+        -- apply rel_exec_exp;eauto.
+        -- intros w' Hacc x1 x2 Hx.
+        eapply rel_Bind.
+        --- apply rel_lookupWstore_safe ;eauto.
+        --- intros w'' Hacc' previous1 previous2 Hprevious.
+        eapply rel_Bind.
+        ---- apply rel_insertWstore ;eauto. destruct Hweaken. eapply weaken ; [apply Hacc'| apply Hx].
+        ---- intros w''' Hacc'' _ _ _.
+        eapply rel_Bind.
+        ----- apply IHstm. 
+        ----- intros w'''' Hacc''' result1 result2 Hresult.
+        eapply rel_Bind.
+        ------ apply rel_restoreWstore. eapply Rel_option_weaken ; [| exact Hprevious]. etransitivity; eauto.
+        ------ intros w''''' Hacc'''' _ _ _.
+        eapply rel_Ret.
+        eapply weaken ; [apply Hacc''''| apply Hresult].
+        Qed.
 
 Lemma rel_wp
   (rel_VA : Rel_VA VAV1 VAV2 rel_V) (stm : PL.Stm)
