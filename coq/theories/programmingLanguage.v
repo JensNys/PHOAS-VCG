@@ -1861,24 +1861,7 @@ Inductive rel_hoas_foas : Related (stringmap PL.Value) Hoas.prop Foas.prop :=
 
 
   
-  Lemma rel_phoas_to_hoas_foas  (Γ : stringmap PL.Value) (p1 : Phoas.prop (PL.Value)) (p2 : Phoas.prop (PL.Exp)) 
-  (relp : @rel_prop (stringmap PL.Value) subseteq (PL.Value) (PL.Exp) int_exp Γ p1 p2) :
-    rel_hoas_foas Γ (Hoas.phoas_to_hoas p1) (Phoas.phoas_to_foas (dom Γ) p2).
-  Proof. 
-    induction relp; cbn.
-    - constructor.
-    - constructor.
-    - constructor; auto.
-    - constructor; auto.
-    - constructor; auto.
-    - constructor. admit. (*
-    apply H0.
-      + set_solver.
-      + constructor.
-      set_solver.
-    *)
-    - constructor; auto.
-  Admitted.
+  
 
   
 
@@ -1886,6 +1869,40 @@ Inductive rel_hoas_foas : Related (stringmap PL.Value) Hoas.prop Foas.prop :=
 
 
   End Rels.
+
+Lemma rel_phoas_to_hoas_foas  (Γ : stringmap PL.Value) (p1 : Phoas.prop (PL.Value)) (p2 : Phoas.prop (PL.Exp)) 
+  (rel_p : @rel_prop (stringmap PL.Value) subseteq (PL.Value) (PL.Exp) int_exp Γ p1 p2) :
+    rel_hoas_foas Γ (Hoas.phoas_to_hoas p1) (Phoas.phoas_to_foas (dom Γ) p2).
+  Proof. 
+    induction rel_p; cbn.
+    - constructor.
+    - constructor.
+    - constructor; auto.
+    - constructor; auto.
+    - constructor; auto.
+    - constructor.  
+    intro v.
+    pose proof rel_weaken_int_exp.
+    destruct H1 as [Hweaken'].
+    set (x := fresh_string_of_set "x" (dom w)).
+    unfold "∘".
+    assert (dom w ∪ {[x]} = dom (<[x:=v]> w)).
+    -- rewrite dom_insert_L.
+       set_solver.
+    --
+    rewrite H1.
+    eapply (H0).
+      + Search "⊆".
+      apply insert_subseteq.
+      apply not_elem_of_dom.  
+      apply fresh_string_of_set_fresh.
+      
+      + constructor.
+        rewrite lookup_insert, decide_True by reflexivity. reflexivity.    
+    - constructor; auto.
+  Qed.
+
+
 
   Theorem rel_vc_hoas_foas : forall (c : Foas.Contract), rel_hoas_foas ∅ (vcg.vc_hoas c) (vcg.vc_foas c).
   intros c.
