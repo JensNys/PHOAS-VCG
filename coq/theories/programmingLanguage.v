@@ -1439,7 +1439,7 @@ Section Related_props.
   Section Rels.
   Variable (World : Set).
   Variable (acc : relation World).
-  Variable  (pre : PreOrder acc).
+  Variable  (preOrd : PreOrder acc).
   Variable ( V1 V2: Set) (rel_V :Related World V1 V2).
   Variable (VAV1 : PL.ValueAlgebra V1) (VAV2 : PL.ValueAlgebra V2).
   Variable (Hweaken : Related_Weakening acc rel_V).
@@ -1607,7 +1607,7 @@ Lemma rel_insertWstore  (w:World) (varname : string) (v1:V1) (v2: V2) (rel_v : r
 
 
 Lemma rel_restoreWstore  (w:World) (varname : string) (opt_v1:option V1) (opt_v2:option V2) (rel_opt : (Rel_option rel_V) w opt_v1 opt_v2) : Rel_Wstore rel_V rel_unit w (vcg.restoreWstore varname opt_v1) (vcg.restoreWstore varname opt_v2).
- Proof using V1 V2 World acc pre rel_V.
+ Proof using V1 V2 World acc preOrd rel_V.
 
  destruct rel_opt; simpl in *. 
   - apply rel_deleteWstore.
@@ -1619,7 +1619,7 @@ Lemma rel_exec_exp
   (rel_VA : Rel_VA VAV1 VAV2 rel_V) (e : PL.Exp)  
     (w:World) 
       : Rel_Wstore rel_V rel_V w (vcg.exec_exp VAV1 e) (vcg.exec_exp VAV2 e).
-  Proof using pre Hweaken.
+  Proof using preOrd Hweaken.
   
    revert w.
    induction e;
@@ -1673,7 +1673,7 @@ Lemma rel_wp
     (w:World) (post1 : V1 -> stringmap V1 -> Phoas.prop V1) (post2 : V2 -> stringmap V2 -> Phoas.prop V2)  (initStore1 : stringmap V1) (initStore2 : stringmap V2)
       (Rel_post : (□ (Rel_Post rel_V rel_V)) w post1 post2) (Rel_initStore : Rel_Store rel_V w initStore1 initStore2)
       : Rel_prop rel_V w (vcg.wp VAV1 stm post1 initStore1) (vcg.wp VAV2 stm post2 initStore2).
-  Proof using pre Hweaken.
+  Proof using preOrd Hweaken.
     unfold vcg.wp.
     eapply rel_exec_stm; eauto.
   Qed.
@@ -1682,7 +1682,7 @@ Lemma rel_wp
    (rel_VA : Rel_VA VAV1 VAV2 rel_V) (c1 : Phoas.Contract V1) (c2 : Phoas.Contract V2) (w : World): 
     rel_Contract w c1 c2 ->
     Rel_prop rel_V w (vcg.vc VAV1 c1) (vcg.vc VAV2 c2).
-  Proof using pre Hweaken.
+  Proof using preOrd Hweaken.
   intro rel_contract.
   induction rel_contract.
   - constructor.
@@ -1702,8 +1702,8 @@ Lemma rel_wp
         * 
           intros s .
           destruct (decide (s = param)) as [-> | Hne].
-          ** rewrite lookup_singleton_eq. rewrite lookup_singleton_eq. constructor. eauto.
-          ** rewrite lookup_singleton_ne;eauto. rewrite lookup_singleton_ne;eauto. constructor.
+          ** rewrite !lookup_singleton_eq. constructor. eauto.
+          ** rewrite !lookup_singleton_ne;eauto. constructor.
 Qed.
 
 
@@ -1746,7 +1746,7 @@ Lemma rel_foas_to_phoas  (store1 : stringmap V1) (store2 : stringmap V2) (foaspr
        (rel_Store : Rel_Store rel_V w store1 store2 ) (rel_VA : Rel_VA  VAV1 VAV2 rel_V) 
        : 
               @rel_prop World acc V1 V2 rel_V w (@Phoas.foas_to_phoas V1 VAV1 store1 foasprop) (@Phoas.foas_to_phoas V2 VAV2 store2 foasprop).
-Proof using Hweaken V1 V2 VAV1 VAV2 World acc pre rel_V.
+Proof using Hweaken V1 V2 VAV1 VAV2 World acc preOrd rel_V.
 revert store1 store2 w rel_Store.
 induction foasprop; intros store1 store2 w rel_Store; simpl.
 - constructor.
@@ -1782,11 +1782,61 @@ Lemma rel_foas_to_phoas_contract
     (store2 : stringmap V2)
     (c : Foas.Contract) 
     (rel_VA :  Rel_VA VAV1 VAV2 rel_V)
+    (wf_c : Foas.wfContract c)
     :
     
     rel_Contract w
       (Phoas.foas_contract_to_phoas_contract VAV1 store1 c) (Phoas.foas_contract_to_phoas_contract VAV2 store2 c).
-Admitted.
+Proof using Hweaken V1 V2 VAV1 VAV2 World acc preOrd rel_V.
+destruct c as [forallVar pre prog arg result post].
+  
+  
+  (* the translation wraps in ForallC *)
+  simpl. apply Rel_ForallC.
+  intros v1 v2 w' Hacc HrelV.
+  (* now prove WfHoareTriple *)
+  constructor.
+  - 
+    eapply rel_foas_to_phoas  ;eauto.
+    
+     intro s.
+     destruct (decide (s = forallVar)) as [-> | Hne].
+     -- rewrite !lookup_singleton_eq.
+      constructor.
+      auto.
+     -- simpl.
+      rewrite !lookup_singleton_ne;eauto.
+      constructor.
+
+  - auto.
+  - 
+    intros result_v1 result_v2 w'' Hacc' Hwfresult.
+    eapply rel_foas_to_phoas  ;eauto.
+
+
+    intros s.
+    (* a lookup in the union comes from either the left or the right singleton *)
+    
+    rewrite !lookup_union.
+    destruct (decide (s = forallVar)) as [-> | Hne].
+    + rewrite !lookup_singleton_eq.
+      rewrite !lookup_singleton_ne;eauto.
+      ++ rewrite !(right_id_L None (∪)).  (* Some v1 ∪ None = Some v1 *)
+         constructor.
+         destruct Hweaken.
+         apply (weaken0 w' w'' v1 v2 Hacc' HrelV).
+      ++ destruct wf_c. destruct p. eauto.
+      ++ destruct wf_c. destruct p. eauto.
+    + destruct (decide (s = result)) as [-> | Hneres].
+    ++ rewrite !lookup_singleton_eq.
+      rewrite !lookup_singleton_ne;eauto.
+      rewrite !(left_id_L None (∪)).  (* Some v1 ∪ None = Some v1 *)
+         constructor.
+         eauto.
+    ++ rewrite !lookup_singleton_ne;eauto.
+       rewrite !(left_id_L None (∪)).
+       constructor.
+Qed.
 
 
 Inductive rel_hoas_foas : Related (stringmap PL.Value) Hoas.prop Foas.prop :=
