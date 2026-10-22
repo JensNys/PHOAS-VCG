@@ -1686,7 +1686,7 @@ Lemma rel_wp
     (w:World) (post1 : V1 -> stringmap V1 -> Phoas.prop V1) (post2 : V2 -> stringmap V2 -> Phoas.prop V2)  (initStore1 : stringmap V1) (initStore2 : stringmap V2)
       (Rel_post : (□ (Rel_Post rel_V rel_V)) w post1 post2) (Rel_initStore : Rel_Store rel_V w initStore1 initStore2)
       : Rel_prop rel_V w (vcg.wp VAV1 stm post1 initStore1) (vcg.wp VAV2 stm post2 initStore2).
-  Proof using pre weaken.
+  Proof using pre Hweaken.
     unfold vcg.wp.
     eapply rel_exec_stm; eauto.
   Qed.
@@ -1695,13 +1695,43 @@ Lemma rel_wp
    (rel_VA : Rel_VA VAV1 VAV2 rel_V) (c1 : Phoas.Contract V1) (c2 : Phoas.Contract V2) (w : World): 
     rel_Contract w c1 c2 ->
     Rel_prop rel_V w (vcg.vc VAV1 c1) (vcg.vc VAV2 c2).
-  Admitted.
+  Proof using pre Hweaken.
+  intro rel_contract.
+  induction rel_contract.
+  - constructor.
+  intros v1 v2 w' Hacc Hv.
+  apply H0;eauto.
+ 
+    (* HoareTriple *)
+    - simpl.  
+      destruct program as [functionName param body].
+      constructor.
+      + eauto.
+      + apply rel_wp; auto.
+        * 
+          intros w' Hacc result1 result2 Hresult store1 store2 Hstore.
+          unfold vcg.ignore_map.
+          apply H1; eauto.
+        * 
+          intros s .
+          destruct (decide (s = param)) as [-> | Hne].
+          ** rewrite lookup_singleton_eq. rewrite lookup_singleton_eq. eauto.
+          ** rewrite lookup_singleton_ne;eauto. rewrite lookup_singleton_ne;eauto.
+Qed.
 
 
 Lemma rel_interp_to_va_default (rel_VA : Rel_VA VAV1 VAV2 rel_V) (store1 : stringmap V1) (store2 : stringmap V2) (e : PL.Exp)
       (w : World) (rel_Store : Rel_Store rel_V w store1 store2 )  :
               rel_V w (PL.interp_to_va_default VAV1 store1 e) (PL.interp_to_va_default VAV2 store2 e).
-Admitted.
+Proof.
+induction e; simpl.
+- apply rel_lit.
+- (* if x is in the store, the store is well-formed; otherwise we default to lit 0 *)
+specialize (rel_Store x).
+destruct (store1 !! x) as [v1|] eqn:Hlookup1; destruct (store2 !! x) as [v2|] eqn:Hlookup2;auto;try contradiction.
+apply rel_lit.
+- apply rel_add; auto.
+Qed.
 
 
 Lemma rel_interp_to_va_crash (rel_VA : Rel_VA VAV1 VAV2 rel_V)
