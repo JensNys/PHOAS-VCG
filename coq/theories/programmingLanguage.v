@@ -1351,16 +1351,20 @@ Instance rel_va_int_exp : Rel_VA  (PL.value_valueAlgebra) (PL.expression_valueAl
   
   }.
 
+  Inductive rel_opt (World : Set)  (T1 T2: Set) (rel_T :Related World T1 T2) (w:World) : option T1 -> option T2 -> Prop :=
+    | rel_none : rel_opt rel_T w None None
+    | rel_some (v1 : T1) (v2 : T2) : rel_T w v1 v2 -> rel_opt rel_T w (Some v1) (Some v2).
+
+  Definition Rel_option (World : Set)  ( T1 T2: Set) (rel_T :Related World T1 T2) : Related World (option T1) (option T2) :=
+    fun w mt1 mt2 =>  rel_opt rel_T w mt1 mt2.
 
 
-Definition Rel_Store (World : Set) (V1 V2 : Set)  (Rel_V :Related World V1 V2) : Related World (stringmap V1) (stringmap V2) :=
+Definition Rel_Store (World : Set) (V1 V2 : Set)  (rel_V :Related World V1 V2) : Related World (stringmap V1) (stringmap V2) :=
     fun (w : World) (store1 : stringmap V1) (store2 : stringmap V2)
      =>
-    forall s, match store1 !! s, store2 !! s with
-                    | Some v1, Some v2 => Rel_V w v1 v2
-                    | None, None => True
-                    | _, _ => False
-              end.
+    forall s, Rel_option rel_V w (store1 !! s) (store2 !! s) .
+    
+
 
 
 
@@ -1479,26 +1483,17 @@ Lemma refl : forall w, acc w w.
   Definition Rel_prop  ( T1 T2: Set)  (rel_T :Related World T1 T2) : Related World (Phoas.prop T1) (Phoas.prop T2) :=
     fun w p1 p2 =>   (rel_prop acc rel_T) w p1 p2.
 
-  Definition Rel_option   ( T1 T2: Set) (rel_T :Related World T1 T2) : Related World (option T1) (option T2) :=
-    fun w mt1 mt2 =>  match (mt1) with 
-                        | None => match (mt2) with 
-                                          | None => True
-                                          | Some v2 => False
-                                        end
-                        | Some v1 => match (mt2) with 
-                                          | None => False
-                                          | Some v2 => rel_T w v1 v2
-                                        end
-                      end.
+
+
+
 
   Lemma Rel_option_weaken (w1 w2 : World) (o1 : option V1) (o2 : option V2) :
     acc w1 w2 -> Rel_option rel_V w1 o1 o2 -> Rel_option rel_V w2 o1 o2.
   Proof using Hweaken.
-    destruct o1 as [v1|].
-     - destruct o2 as [v2|] .
-       -- unfold Rel_option. apply Hweaken.
-       -- eauto.
-    - eauto.
+    intros.
+    destruct H0.
+    - constructor.
+    - constructor. destruct  Hweaken. eapply Hweaken;eauto.
   Qed.
 
 Inductive rel_Contract (w:World) :  Phoas.Contract V1 -> Phoas.Contract V2 -> Prop :=
@@ -1555,15 +1550,9 @@ Definition Rel_Wstore ( V1 V2 A1 A2: Set) (rel_V :Related World V1 V2) (rel_A :R
   unfold Rel_Wstore.
   intros post1 post2 H store1 store2 rel_Store .
   
-  destruct (store1 !! s) eqn:HEQ1; destruct (store2 !! s) eqn:HEQ2;eauto.
-  - apply H;eauto.
-      specialize (rel_Store s).
-      rewrite HEQ1, HEQ2 in rel_Store. eauto.
-  -specialize (rel_Store s).
-  rewrite HEQ1, HEQ2 in rel_Store. contradiction.
-  -specialize (rel_Store s).
-  rewrite HEQ1, HEQ2 in rel_Store. contradiction.
-  - constructor.
+  destruct (rel_Store s).
+  - constructor. 
+  - apply H;eauto. 
   Qed.
 
   
@@ -1576,14 +1565,7 @@ Definition Rel_Wstore ( V1 V2 A1 A2: Set) (rel_V :Related World V1 V2) (rel_A :R
   intros post1 post2 H store1 store2 rel_Store .
   eapply H;eauto.
 
-  unfold Rel_option.
-  
-  destruct (store1 !! s) eqn:Heq1 ;destruct (store2 !! s) eqn:Heq2 ;eauto.
-  - specialize (rel_Store s).
-  rewrite Heq1, Heq2 in rel_Store. eauto.
-  - specialize (rel_Store s). rewrite Heq1 in rel_Store. rewrite Heq2 in rel_Store. contradiction.
-  - specialize (rel_Store s). rewrite Heq1 in rel_Store. rewrite Heq2 in rel_Store. contradiction. 
-  Qed.
+ Qed.
 
 Lemma rel_insertWstore  (w:World) (varname : string) (v1:V1) (v2: V2) (rel_v : rel_V w v1 v2) :  (Rel_Wstore rel_V rel_unit w (vcg.insertWstore varname v1) (vcg.insertWstore varname v2)).
   unfold Rel_Wstore, Rel_Func, Rel_Post, Box, vcg.insertWstore ,"↣" ,Rel_prop.
@@ -1592,9 +1574,13 @@ Lemma rel_insertWstore  (w:World) (varname : string) (v1:V1) (v2: V2) (rel_v : r
   specialize (Hpost w (refl w) tt tt I).
   apply Hpost.
   intros s.
+  specialize (rel_Store s).
   destruct (decide (s = varname)) as [-> | Hne1].
-  - rewrite lookup_insert_eq . rewrite lookup_insert_eq .  exact rel_v.
-  - rewrite lookup_insert_ne;eauto. rewrite lookup_insert_ne;eauto. apply rel_Store.
+  - rewrite lookup_insert_eq . rewrite lookup_insert_eq . constructor.  exact rel_v.
+  - rewrite lookup_insert_ne;eauto. rewrite lookup_insert_ne;eauto. 
+  
+
+  
   Qed.
 
  
@@ -1609,9 +1595,10 @@ Lemma rel_insertWstore  (w:World) (varname : string) (v1:V1) (v2: V2) (rel_v : r
   specialize (Hpost w (refl w) tt tt I ).
   apply Hpost.
   intros s .
+  specialize (rel_Store s).
   destruct (decide (s = varname)) as [-> | Hne].
-  - rewrite lookup_delete_eq . rewrite lookup_delete_eq . reflexivity. 
-  -  rewrite lookup_delete_ne;eauto. rewrite lookup_delete_ne;eauto. apply rel_Store.
+  - rewrite lookup_delete_eq . rewrite lookup_delete_eq . constructor.  
+  -  rewrite lookup_delete_ne;eauto. rewrite lookup_delete_ne;eauto. 
   Qed.
   
 
@@ -1621,11 +1608,11 @@ Lemma rel_insertWstore  (w:World) (varname : string) (v1:V1) (v2: V2) (rel_v : r
 
 Lemma rel_restoreWstore  (w:World) (varname : string) (opt_v1:option V1) (opt_v2:option V2) (rel_opt : (Rel_option rel_V) w opt_v1 opt_v2) : Rel_Wstore rel_V rel_unit w (vcg.restoreWstore varname opt_v1) (vcg.restoreWstore varname opt_v2).
  Proof using V1 V2 World acc pre rel_V.
-  destruct opt_v1 as [v1|];destruct opt_v2 as [v2|]; simpl in *. 
-  - apply rel_insertWstore.  exact rel_opt.
-  - contradiction.
-  - contradiction.
+
+ destruct rel_opt; simpl in *. 
   - apply rel_deleteWstore.
+  - apply rel_insertWstore;eauto.
+  
   Qed.
 
 Lemma rel_exec_exp  
@@ -1715,8 +1702,8 @@ Lemma rel_wp
         * 
           intros s .
           destruct (decide (s = param)) as [-> | Hne].
-          ** rewrite lookup_singleton_eq. rewrite lookup_singleton_eq. eauto.
-          ** rewrite lookup_singleton_ne;eauto. rewrite lookup_singleton_ne;eauto.
+          ** rewrite lookup_singleton_eq. rewrite lookup_singleton_eq. constructor. eauto.
+          ** rewrite lookup_singleton_ne;eauto. rewrite lookup_singleton_ne;eauto. constructor.
 Qed.
 
 
@@ -1728,7 +1715,8 @@ induction e; simpl.
 - apply rel_lit.
 - (* if x is in the store, the store is well-formed; otherwise we default to lit 0 *)
 specialize (rel_Store x).
-destruct (store1 !! x) as [v1|] eqn:Hlookup1; destruct (store2 !! x) as [v2|] eqn:Hlookup2;auto;try contradiction.
+
+destruct rel_Store ;auto. 
 apply rel_lit.
 - apply rel_add; auto.
 Qed.
@@ -1738,17 +1726,27 @@ Lemma rel_interp_to_va_crash (rel_VA : Rel_VA VAV1 VAV2 rel_V)
       (store1 : stringmap V1) (store2 : stringmap V2) (e : PL.Exp)
       (w : World) (rel_Store : Rel_Store rel_V w store1 store2) :
       Rel_option rel_V w (PL.interp_to_va_crash VAV1 store1 e) (PL.interp_to_va_crash VAV2 store2 e).
-      Admitted.
+Proof.
+induction e; simpl.
+- constructor. apply rel_lit.
+- (* if x is in the store, the store is well-formed; otherwise we default to lit 0 *)
+destruct (rel_Store x);constructor;auto.
+
+- destruct IHe1;try constructor.
+  destruct IHe2;try constructor.
+  apply rel_add;auto.
+
+Qed.
   
 
 
 
 Lemma rel_foas_to_phoas  (store1 : stringmap V1) (store2 : stringmap V2) (foasprop : Foas.prop) 
       (w : World) 
-       (rel_Store : Rel_Store rel_V w store1 store2 ) (rel_VA : Rel_VA  VAV1 VAV2 rel_V) (Hweaken : Related_Weakening  acc rel_V)
+       (rel_Store : Rel_Store rel_V w store1 store2 ) (rel_VA : Rel_VA  VAV1 VAV2 rel_V) 
        : 
               @rel_prop World acc V1 V2 rel_V w (@Phoas.foas_to_phoas V1 VAV1 store1 foasprop) (@Phoas.foas_to_phoas V2 VAV2 store2 foasprop).
-Proof using V1 V2 VAV1 VAV2 World acc pre rel_V weaken.
+Proof using Hweaken V1 V2 VAV1 VAV2 World acc pre rel_V.
 revert store1 store2 w rel_Store.
 induction foasprop; intros store1 store2 w rel_Store; simpl.
 - constructor.
@@ -1765,14 +1763,17 @@ induction foasprop; intros store1 store2 w rel_Store; simpl.
   + 
    rewrite lookup_insert_eq .
    rewrite lookup_insert_eq .
+   constructor.
    eauto.
-  + rewrite lookup_insert_ne  by congruence.
+  +
+   rewrite lookup_insert_ne  by congruence.
     rewrite lookup_insert_ne  by congruence.
 
-    specialize (rel_Store s).
-    destruct (store1 !! s) as [a1|], (store2 !! s) as [a2|]; try contradiction; auto.
+    
+     destruct (rel_Store s); try constructor; auto.
+    
     destruct Hweaken .
-    eapply (weaken0 w w' a1 a2 Hacc rel_Store); auto.
+    eapply (weaken0 w w' v0 v3 Hacc H); auto.
 Qed.
 
 Lemma rel_foas_to_phoas_contract 
