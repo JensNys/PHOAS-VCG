@@ -1904,12 +1904,12 @@ Lemma rel_phoas_to_hoas_foas  (Γ : stringmap PL.Value) (p1 : Phoas.prop (PL.Val
 
 
 
-  Theorem rel_vc_hoas_foas : forall (c : Foas.Contract), rel_hoas_foas ∅ (vcg.vc_hoas c) (vcg.vc_foas c).
-  intros c.
+  Theorem rel_vc_hoas_foas : forall (c : Foas.Contract) , Foas.wfContract c -> rel_hoas_foas ∅ (vcg.vc_hoas c) (vcg.vc_foas c).
+  intros c wfc.
   
   apply rel_phoas_to_hoas_foas. (*phoas to foas*)
   apply (rel_vc _ rel_weaken_int_exp rel_va_int_exp). (*vc_foas*)
-  apply (rel_foas_to_phoas_contract _ _ _ ∅ ∅ c rel_va_int_exp). (*foas to phoas contract*)
+  apply (rel_foas_to_phoas_contract _ _ _ ∅ ∅ c rel_va_int_exp wfc). (*foas to phoas contract*)
   Qed.
 
 
@@ -1980,12 +1980,12 @@ Qed.
 (* 
 If the verification condition is true, running the program with the right precondition will yield a result with the right postcondition.
 *)
-Theorem foas_adequate (c : Foas.Contract) : 
+Theorem foas_adequate (c : Foas.Contract) (wf_c : Foas.wfContract c): 
       Foas.semant (vcg.vc_foas c) ->  Foas.contract_semant c.
 Proof.
 intros Foas_semant.
 pose proof (rel_vc_hoas_foas c) as Hrelated.
-pose proof (semant_hoas_foas Hrelated) as Hsemant_equivalent.
+pose proof (semant_hoas_foas (Hrelated wf_c)) as Hsemant_equivalent.
 pose proof (@hoas_adequate c) as HoasSound.
 
 apply Hsemant_equivalent in Foas_semant.   
