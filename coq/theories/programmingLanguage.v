@@ -1957,23 +1957,106 @@ End Related.
 
 Section Soundness.
 
+(*I introduce a rel_contract relation so i can prove a correspondence between a foas contract and the hoas contract you get when translating the foas to a hoas contract.
+  I will use then prove that related contracts have the same semantics
+ *)
+Inductive rel_contract : Hoas.Contract -> Foas.Contract -> Prop :=
+| RelContract (forall_var arg result_name : string) (prog : PL.Prog)
+    (pre_hoas : PL.Value -> Hoas.prop) (post_hoas : PL.Value -> PL.Value -> Hoas.prop)
+    (pre_foas post_foas : Foas.prop) :
+    (forall v, rel_hoas_foas (<[forall_var := v]> ∅) (pre_hoas v) pre_foas) ->
+    (forall v res, rel_hoas_foas (<[result_name := res]> (<[forall_var := v]> ∅)) (post_hoas v res) post_foas) ->
+    rel_contract (Hoas.ForallC (fun v => Hoas.HoareTriple (pre_hoas v) prog v (post_hoas v)))
+                 (Foas.MkContract forall_var pre_foas prog arg result_name post_foas).
+
+Lemma rel_contract_semant (h : Hoas.Contract) (c : Foas.Contract) :
+  rel_contract h c -> Hoas.contract_semant h -> Foas.contract_semant c.
+  Proof.
+  intros Hrelated Hhoas_semant.
+  induction Hrelated.
+
+  intros varName pre' prog' argName resultName post' Heq inp result Hpre_f Harg Heval.
+  specialize (H inp).
+  specialize (H0 inp result).
+
+injection Heq as Hforallvar_eq Hpre_eq Hprog_eq Harg_eq HresultName_eq Hpost_eq.
+  subst varName pre' prog' argName resultName post' arg.
+  pose proof (semant_hoas_foas_env H) as Hpre_equivalent.
+  pose proof (semant_hoas_foas_env H0) as Hpost_equivalent.
+  apply Hpost_equivalent.
+  apply Hpre_equivalent in Hpre_f.
+  unfold Hoas.contract_semant in Hhoas_semant.
+
+  specialize (Hhoas_semant pre_hoas prog post_hoas eq_refl inp result).
+
+  apply Hhoas_semant;eauto.
+  Qed.
+
+
+
 (* translating a Foas contract to a Hoas contract preserves its semantics *)
-Lemma contract_translation_preserves_semantics (c : Foas.Contract) : Hoas.contract_semant (Hoas.phoas_to_hoas_contract (Phoas.foas_contract_to_phoas_contract PL.value_valueAlgebra empty c)) -> Foas.contract_semant c .
-Admitted.
+Lemma contract_translation_preserves_semantics (c : Foas.Contract) (wf_c : Foas.wfContract c): Hoas.contract_semant (Hoas.phoas_to_hoas_contract (Phoas.foas_contract_to_phoas_contract PL.value_valueAlgebra empty c)) -> Foas.contract_semant c .
+intros.
+induction c.
+destruct wf_c as [[[wf_pre Harg] Hres] wf_post].
+rewrite Harg in *.
+
+unfold Phoas.foas_contract_to_phoas_contract in *.
+unfold Hoas.phoas_to_hoas_contract in *.
+unfold Hoas.contract_semant in H.
+
+unfold Foas.contract_semant.
+intros varName pre' prog' argName resultName post' Heq inp result Hpre _ Heval.
+injection Heq as Hfv Hpre' Hprog Harg Hres' Hpost'.
+subst varName pre' prog' argName resultName post'.
 
 
-Theorem hoas_adequate (c : Foas.Contract) : 
+
+
+
+
+
+unfold Hoas.contract_semant in H.
+  specialize (H
+    (fun v => Hoas.phoas_to_hoas (Phoas.foas_to_phoas PL.value_valueAlgebra {[fv := v]} pre))
+    prog
+    (fun v r => Hoas.phoas_to_hoas
+                  (Phoas.foas_to_phoas PL.value_valueAlgebra ({[fv := v]} ∪ {[res := r]}) post))
+    eq_refl inp result).
+
+
+
+
+
+
+
+unfold Foas.contract_semant.
+intros.
+
+
+
+
+unfold Phoas.foas_contract_to_phoas_contract in *.
+simpl in *.
+
+unfold Foas.contract_semant.
+
+intros.
+unfold Foas.semant'.
+Qed.
+
+
+Theorem hoas_adequate (c : Foas.Contract) (wf_c : Foas.wfContract c): 
       Hoas.semant (vcg.vc_hoas c) ->  Foas.contract_semant c.
 Proof.
 intros.
 rewrite vcg.vc_hoas_unfold in *.
 pose proof (adequate) as Hadequate.
 pose proof (contract_translation_preserves_semantics) as Hpreserve.
-apply (Hpreserve c).
-specialize (Hadequate (Phoas.foas_contract_to_phoas_contract
-PL.value_valueAlgebra ∅ c)) .
-apply Hadequate.
-exact H.
+apply (Hpreserve c);eauto.
+(*specialize (Hadequate (Phoas.foas_contract_to_phoas_contract
+PL.value_valueAlgebra ∅ c))  *)
+
 Qed.
 
 
@@ -1989,10 +2072,8 @@ pose proof (semant_hoas_foas (Hrelated wf_c)) as Hsemant_equivalent.
 pose proof (@hoas_adequate c) as HoasSound.
 
 apply Hsemant_equivalent in Foas_semant.   
-specialize (HoasSound Foas_semant).
+specialize (HoasSound wf_c Foas_semant).
 exact HoasSound.
 Qed.
-
-
 
 End Soundness.
