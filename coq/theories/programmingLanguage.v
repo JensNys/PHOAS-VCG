@@ -46,7 +46,7 @@ Inductive Prog : Set :=
   }.
   
   
-  Instance value_valueAlgebra : ValueAlgebra Z :=
+  Instance value_valueAlgebra : ValueAlgebra (PL.Value) :=
   {
   lit := id;
   add := Z.add
@@ -1993,9 +1993,49 @@ injection Heq as Hforallvar_eq Hpre_eq Hprog_eq Harg_eq HresultName_eq Hpost_eq.
   Qed.
 
 
+Lemma rel_interpret_exp (store : stringmap PL.Value) (e : PL.Exp) (wf_e : PL.wfexp (dom store) e) :
+  rel_value_exp store (PL.interp_to_va_default PL.value_valueAlgebra store e) e.
+  Proof.
+  induction wf_e.
+  - simpl. constructor.
+  - simpl.
+    apply elem_of_dom in H. 
+    destruct H.
+    rewrite H.
+    constructor;auto.
+  - simpl. constructor;eauto.
+  Qed.    
+
+  
+Lemma rel_foas_to_phoas_hoas (store : stringmap PL.Value) (p : Foas.prop) :
+  Foas.wfprop (dom store) p ->
+  rel_hoas_foas store (Hoas.phoas_to_hoas (Phoas.foas_to_phoas PL.value_valueAlgebra store p)) p . 
+ 
+  Proof.
+  revert store.
+  induction p; intros; simpl; constructor; try inversion H; eauto. (**;intros store wf_p ; simpl;constructor; eauto.*)
+
+  - apply rel_interpret_exp;eauto. (*proof forall p, wfexp l -> (int_exp store interp l )l*) 
+  - apply rel_interpret_exp;eauto.
+  - intros; simpl. 
+    apply IHp.
+    rewrite dom_insert_L, union_comm_L.
+    eauto.
+  Qed.
+
+
+  Lemma rel_contract_translation (c : Foas.Contract) (wf_c : Foas.wfContract c) : 
+          rel_contract (Hoas.phoas_to_hoas_contract (Phoas.foas_contract_to_phoas_contract PL.value_valueAlgebra empty c)) c.
+  Proof.
+  destruct c.
+  simpl.
+  constructor;intros.
+  - destruct wf_c.
+
 
 (* translating a Foas contract to a Hoas contract preserves its semantics *)
-Lemma contract_translation_preserves_semantics (c : Foas.Contract) (wf_c : Foas.wfContract c): Hoas.contract_semant (Hoas.phoas_to_hoas_contract (Phoas.foas_contract_to_phoas_contract PL.value_valueAlgebra empty c)) -> Foas.contract_semant c .
+Lemma contract_translation_preserves_semantics (c : Foas.Contract) (wf_c : Foas.wfContract c):
+ Hoas.contract_semant (Hoas.phoas_to_hoas_contract (Phoas.foas_contract_to_phoas_contract PL.value_valueAlgebra empty c)) -> Foas.contract_semant c .
 intros.
 induction c.
 destruct wf_c as [[[wf_pre Harg] Hres] wf_post].
