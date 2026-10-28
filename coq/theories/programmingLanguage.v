@@ -2007,7 +2007,7 @@ Lemma rel_interpret_exp (store : stringmap PL.Value) (e : PL.Exp) (wf_e : PL.wfe
   Qed.    
 
   
-Lemma rel_foas_to_phoas_hoas (store : stringmap PL.Value) (p : Foas.prop) :
+Lemma rel_foas_to_hoas (store : stringmap PL.Value) (p : Foas.prop) :
   Foas.wfprop (dom store) p ->
   rel_hoas_foas store (Hoas.phoas_to_hoas (Phoas.foas_to_phoas PL.value_valueAlgebra store p)) p . 
  
@@ -2024,15 +2024,36 @@ Lemma rel_foas_to_phoas_hoas (store : stringmap PL.Value) (p : Foas.prop) :
   Qed.
 
 
-  Lemma rel_contract_translation (c : Foas.Contract) (wf_c : Foas.wfContract c) : 
+  Lemma rel_contract_foas_to_hoas (c : Foas.Contract) (wf_c : Foas.wfContract c) : 
           rel_contract (Hoas.phoas_to_hoas_contract (Phoas.foas_contract_to_phoas_contract PL.value_valueAlgebra empty c)) c.
   Proof.
   destruct c.
   simpl.
+
+  destruct wf_c as [[[Hpre Harg] Hresult] Hpost]. 
   constructor;intros.
-  - destruct wf_c.
+  - apply rel_foas_to_hoas. 
+   rewrite dom_singleton_L.
+   auto.
+  -  (*apply rel_foas_to_hoas fails : Unable to unify "{[forallVar := v]} ∪ {[result := res]}" with "<[result:=res]> (<[forallVar:=v]> ∅)". *)
+    assert (Heq : <[result:=res]> (<[forallVar:=v]> (∅ : stringmap PL.Value))
+                  = {[forallVar := v]} ∪ {[result := res]}).
+    -- rewrite insert_empty.
+       Search insert.
+       rewrite <- insert_union_singleton_r.
+       --- reflexivity.
+       --- apply lookup_singleton_ne. 
+           exact Hresult.
 
-
+    -- rewrite Heq.
+       apply rel_foas_to_hoas.
+       rewrite dom_union_L. 
+       rewrite !dom_singleton_L.
+       auto.
+    Qed.
+    
+    
+  
 (* translating a Foas contract to a Hoas contract preserves its semantics *)
 Lemma contract_translation_preserves_semantics (c : Foas.Contract) (wf_c : Foas.wfContract c):
  Hoas.contract_semant (Hoas.phoas_to_hoas_contract (Phoas.foas_contract_to_phoas_contract PL.value_valueAlgebra empty c)) -> Foas.contract_semant c .
