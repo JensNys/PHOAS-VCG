@@ -1052,10 +1052,10 @@ Qed.
   Fixpoint exec_stm (V:Set) (VA : PL.ValueAlgebra V) (stm : PL.Stm) : (Wstore V V):= 
   match stm with
   | PL.Expr e => exec_exp VA e
-  | PL.Let var e body => bind (exec_exp VA e)          (fun  x =>
-                         bind (lookupWstore_safe var)  (fun  previous =>
-                         bind (insertWstore var x)     (fun _ =>
-                         bind (exec_stm VA body)       (fun result =>
+  | PL.Let var e body => bind (exec_exp VA e)                    (fun  x =>
+                         bind (lookupWstore_safe var)            (fun  previous =>
+                         bind (insertWstore var x)               (fun _ =>
+                         bind (exec_stm VA body)                 (fun result =>
                          bind (restoreWstore var previous)       (fun _ =>
                          ret result
                          
@@ -2057,53 +2057,18 @@ Lemma rel_foas_to_hoas (store : stringmap PL.Value) (p : Foas.prop) :
 (* translating a Foas contract to a Hoas contract preserves its semantics *)
 Lemma contract_translation_preserves_semantics (c : Foas.Contract) (wf_c : Foas.wfContract c):
  Hoas.contract_semant (Hoas.phoas_to_hoas_contract (Phoas.foas_contract_to_phoas_contract PL.value_valueAlgebra empty c)) -> Foas.contract_semant c .
-intros.
-induction c.
-destruct wf_c as [[[wf_pre Harg] Hres] wf_post].
-rewrite Harg in *.
+Proof.
+intros Hoas_semant.
 
-unfold Phoas.foas_contract_to_phoas_contract in *.
-unfold Hoas.phoas_to_hoas_contract in *.
-unfold Hoas.contract_semant in H.
-
-unfold Foas.contract_semant.
-intros varName pre' prog' argName resultName post' Heq inp result Hpre _ Heval.
-injection Heq as Hfv Hpre' Hprog Harg Hres' Hpost'.
-subst varName pre' prog' argName resultName post'.
+(*c is related to hoas c*)
+pose proof (rel_contract_foas_to_hoas c wf_c) as Hrelated.
+(*related c are equivalent*)
+pose proof (rel_contract_semant Hrelated) as Hrelated_equiv.
+apply Hrelated_equiv.
+apply Hoas_semant.
 
 
 
-
-
-
-
-unfold Hoas.contract_semant in H.
-  specialize (H
-    (fun v => Hoas.phoas_to_hoas (Phoas.foas_to_phoas PL.value_valueAlgebra {[fv := v]} pre))
-    prog
-    (fun v r => Hoas.phoas_to_hoas
-                  (Phoas.foas_to_phoas PL.value_valueAlgebra ({[fv := v]} ∪ {[res := r]}) post))
-    eq_refl inp result).
-
-
-
-
-
-
-
-unfold Foas.contract_semant.
-intros.
-
-
-
-
-unfold Phoas.foas_contract_to_phoas_contract in *.
-simpl in *.
-
-unfold Foas.contract_semant.
-
-intros.
-unfold Foas.semant'.
 Qed.
 
 
