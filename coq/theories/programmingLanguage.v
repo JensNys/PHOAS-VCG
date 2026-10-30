@@ -1170,11 +1170,7 @@ End WFs.
   End vcg.
 
 Section well_formed_generation.
-Check Phoas.wfprop.
-Check Phoas.R.
 
-Search subseteq.
-Print Instances PreOrder.
 
 
 
@@ -1188,6 +1184,18 @@ Theorem wf_vc_foas : forall (c : Foas.Contract), Foas.wfprop empty (vcg.vc_foas 
   apply (Phoas.wf_foas_to_phoas_contract _ _ _ Phoas.WF_VA_exp Phoas.weakening_wfe). (*foas to phoas contract*)
 Qed.
 
+(*All phoas propositions are well-formed (meta-theoretical result that is not provable) *)
+Lemma wf_all_phoas : forall (World V: Set) (wf_v : WF World V) (acc : relation World) (w : World) (p : Phoas.prop V),
+                     Phoas.wfprop acc wf_v w p.
+Admitted. 
+
+(* same statemen of well-formedness. this time proven using the meta-theoretical result*)
+Theorem wf_vc_foas' : forall (c : Foas.Contract), Foas.wfprop empty (vcg.vc_foas c).
+  intros c.
+  
+  eapply Phoas.wf_phoas_to_foas. (*phoas to foas*)
+  eapply wf_all_phoas.
+Qed.
 
 
 
@@ -1257,7 +1265,7 @@ Lemma wpWeakest : forall  (post : PL.Value->stringmap PL.Value->Phoas.prop PL.Va
   Qed.
 
 
-
+  (* when the vc returns a hoas proposition, it's correct wrt operational semantics of the Hoas contract *)
   Definition adequate (c : Phoas.Contract PL.Value) :
    Hoas.semant (vcg.vc_just_hoas c) ->  Hoas.contract_semant (Hoas.phoas_to_hoas_contract c).
   Proof.
@@ -1420,20 +1428,6 @@ Section Related_props.
   
   
 
-
-
-
-
-
-
-
-(*Theorem RelVC : forall (c : Phoas.contract), Related (vcg.vc)
-
-
-
-                  (VT1 : ValueAlgebra T1) (VT1 : ValueAlgebra T1)
-                   (p1 : Phoas.Prop T1) (p1 : Phoas.Prop T2)
-                   := World-> T1 -> Type.*)
 
 
   Section Rels.
@@ -2071,7 +2065,7 @@ apply Hoas_semant.
 
 Qed.
 
-
+(* when the vc returns a hoas proposition, it's correct wrt operational semantics of the foas contract *)
 Theorem hoas_adequate (c : Foas.Contract) (wf_c : Foas.wfContract c): 
       Hoas.semant (vcg.vc_hoas c) ->  Foas.contract_semant c.
 Proof.
