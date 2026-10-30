@@ -1184,6 +1184,10 @@ Theorem wf_vc_foas : forall (c : Foas.Contract), Foas.wfprop empty (vcg.vc_foas 
   apply (Phoas.wf_foas_to_phoas_contract _ _ _ Phoas.WF_VA_exp Phoas.weakening_wfe). (*foas to phoas contract*)
 Qed.
 
+
+
+
+
 (*All phoas propositions are well-formed (meta-theoretical result that is not provable) *)
 Lemma wf_all_phoas : forall (World V: Set) (wf_v : WF World V) (acc : relation World) (w : World) (p : Phoas.prop V),
                      Phoas.wfprop acc wf_v w p.
@@ -1215,22 +1219,6 @@ End well_formed_generation.
 
   
 
-(*wp is the weakest of the preconditions, this lemma is not needed.*)
-Lemma wpWeakest : forall  (post : PL.Value->stringmap PL.Value->Phoas.prop PL.Value) (stm : PL.Stm) (pre : Phoas.prop PL.Value) (initStore :  stringmap PL.Value) result endmap,       
-  
-  (Phoas.semant pre -> PL.evalStm initStore stm (result,endmap)-> Phoas.semant (post result endmap)) (*if pre is a precondition*)
-  ->
-  (Phoas.semant pre -> Phoas.semant (vcg.wp PL.value_valueAlgebra stm post initStore) ). Admitted.
-
-
-
-  
-
-
-  
-
-
-
 
 
 
@@ -1240,7 +1228,9 @@ Lemma wpWeakest : forall  (post : PL.Value->stringmap PL.Value->Phoas.prop PL.Va
   Lemma wpPreconditionHoas : forall  (post : PL.Value->Hoas.prop) (stm : PL.Stm)  (inp : PL.Value) (arg : string) result fname,       
   (Phoas.semant (vcg.wp PL.value_valueAlgebra stm (vcg.ignore_map (Hoas.hoas_to_phoas ∘  post)) {[arg := inp]})) 
   ->
-  (PL.evalProg (PL.Fun fname arg stm ) inp result)-> Hoas.semant (post result ). Admitted. (*if pre is a precondition*)
+  (PL.evalProg (PL.Fun fname arg stm ) inp result)-> Hoas.semant (post result ).
+  Proof.
+  Admitted. (*if pre is a precondition*)
   
 
 
