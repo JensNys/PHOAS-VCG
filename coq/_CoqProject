@@ -2,4 +2,10 @@
 
 -R theories Phoas
 theories/programmingLanguage.v
-theories/wellscoped.v
+theories/foas.v
+theories/phoas.v
+theories/hoas.v
+theories/vcGen.v
+theories/vcgWellFormed.v
+theories/hoasSoundness.v
+theories/vcgRelated.v
