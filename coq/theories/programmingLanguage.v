@@ -39,21 +39,21 @@ Inductive Stm : Set :=
 Inductive Prog : Set :=
   | Fun (functionName : string) (param : string) (body : Stm).
   
-  Class ValueAlgebra (V: Set) :=
+  Class LogicVariable (V: Set) :=
   {
   lit : PL.Value -> V;
   add : V -> V -> V
   }.
   
   
-  Instance value_valueAlgebra : ValueAlgebra (PL.Value) :=
+  Instance value_logicVariable : LogicVariable (PL.Value) :=
   {
   lit := id;
   add := Z.add
   
   }.
   
-  Instance expression_valueAlgebra : ValueAlgebra PL.Exp :=
+  Instance expression_logicVariable : LogicVariable PL.Exp :=
   {
   lit := PL.Lit;
   add := PL.Add
@@ -121,7 +121,7 @@ intros x H.
 
 
 
-  Fixpoint interp_to_va_default (V : Set) (VA: ValueAlgebra V) (store:stringmap V) (e : Exp)  : V :=
+  Fixpoint interp_to_va_default (V : Set) (VA: LogicVariable V) (store:stringmap V) (e : Exp)  : V :=
     match e with
       |Lit n => lit n
       
@@ -133,7 +133,7 @@ intros x H.
       | Add l r=> add (interp_to_va_default VA store l) (interp_to_va_default VA store r)
     end.
     
-    Fixpoint interp_to_va_crash (V : Set) (VA: ValueAlgebra V) (store:stringmap V) (e : Exp) : option V :=
+    Fixpoint interp_to_va_crash (V : Set) (VA: LogicVariable V) (store:stringmap V) (e : Exp) : option V :=
     match e with
     | Lit n => Some (lit n)
     | Var x => lookup x store
@@ -215,8 +215,8 @@ Module Foas.
     | Foas.Forall x body =>
         forall arg, semant' (insert x arg store) body
     | Foas.Cmp cmp e1 e2 =>
-        match PL.interp_to_va_crash PL.value_valueAlgebra store e1,
-              PL.interp_to_va_crash PL.value_valueAlgebra store e2 with
+        match PL.interp_to_va_crash PL.value_logicVariable store e1,
+              PL.interp_to_va_crash PL.value_logicVariable store e2 with
         | Some v1, Some v2 => semant_Relop cmp v1 v2
         | _, _ => False
         end
@@ -344,7 +344,7 @@ Inductive prop (A : Set) : Set :=
 
 
 
-    Fixpoint foas_to_phoas (V:Set) (VA: PL.ValueAlgebra V) (store : stringmap V) (foasprop : Foas.prop)  : prop V :=
+    Fixpoint foas_to_phoas (V:Set) (VA: PL.LogicVariable V) (store : stringmap V) (foasprop : Foas.prop)  : prop V :=
     match foasprop with
     |Foas.T => T V
     |Foas.F => F V
@@ -359,7 +359,7 @@ Inductive prop (A : Set) : Set :=
      Check foas_to_phoas.
 
 
-Class WF_VA (World : Set) (V:Set) (VA: PL.ValueAlgebra V) 
+Class WF_VA (World : Set) (V:Set) (VA: PL.LogicVariable V) 
 (WA: WF World V)  := {
     wf_lit : forall Γ n, WA Γ (VA.(PL.lit) n);
     wf_add : forall Γ v1 v2, WA Γ v1 -> WA Γ v2 -> WA Γ (VA.(PL.add) v1 v2);
@@ -381,7 +381,7 @@ Definition WfStore (World : Set) (V : Set)  (WA :WF World V) : WF World (stringm
 
 
 
-Lemma wf_interp_to_va_default (World : Set) (V:Set) (VA: PL.ValueAlgebra V) (store : stringmap V) (e : PL.Exp)
+Lemma wf_interp_to_va_default (World : Set) (V:Set) (VA: PL.LogicVariable V) (store : stringmap V) (e : PL.Exp)
       (context : World) WA
        (wfStore : WfStore WA context store ) (X : WF_VA VA WA) :
               WA context (PL.interp_to_va_default VA store e).
@@ -396,7 +396,7 @@ induction e; simpl.
 Qed.
 
 
-Lemma wf_foas_to_phoas (World : Set) (V:Set) (VA: PL.ValueAlgebra V) (store : stringmap V)  (foasprop : Foas.prop) 
+Lemma wf_foas_to_phoas (World : Set) (V:Set) (VA: PL.LogicVariable V) (store : stringmap V)  (foasprop : Foas.prop) 
       (acc: relation World) (context : World) (WA : WF World V)  
        (wfStore : WfStore WA context store ) (X : WF_VA VA WA) (Hweaken : Weakening  acc WA)
        : 
@@ -425,7 +425,7 @@ Qed.
 
 
 
-Lemma wf_foas_to_phoas2 (World : Set) (V:Set) (VA: PL.ValueAlgebra V) (store : stringmap V)  (foasprop : Foas.prop) (wfFoas : Foas.wfprop (dom store) foasprop ) :
+Lemma wf_foas_to_phoas2 (World : Set) (V:Set) (VA: PL.LogicVariable V) (store : stringmap V)  (foasprop : Foas.prop) (wfFoas : Foas.wfprop (dom store) foasprop ) :
       forall  (acc: relation World) (context : World) (WA : WF World V)
        (wfStore : WfStore ( WA) context store  ) (X : WF_VA VA WA ) 
        ( HaccElem: Weakening acc ( WA)), 
@@ -441,7 +441,7 @@ Qed.
   Definition bind (A B:Set) (m : R A) (k : A->R B) : R B :=
      fun r => k (m r) r.
   
-  Instance R_valueAlgebra : PL.ValueAlgebra (stringset -> PL.Exp) :=
+  Instance R_logicVariable : PL.LogicVariable (stringset -> PL.Exp) :=
     {
     lit i:= ret (PL.Lit i);
     add x y := bind x (fun v1 => 
@@ -500,14 +500,14 @@ Qed.
 
 
   Check foas_to_phoas.
-  Definition foas_contract_to_phoas_contract (V : Set) (VA : PL.ValueAlgebra V) (env : stringmap V) (foas_contract : Foas.Contract) : Contract V :=
+  Definition foas_contract_to_phoas_contract (V : Set) (VA : PL.LogicVariable V) (env : stringmap V) (foas_contract : Foas.Contract) : Contract V :=
      match foas_contract with
       | Foas.MkContract forallVar pre prog  arg result post => ForallC (fun v => HoareTriple (foas_to_phoas VA {[ forallVar := v ]} pre) prog v (fun r => foas_to_phoas VA ({[ forallVar := v ]} ∪ {[ result := r ]} ) post))
      end .
 
 
 Theorem wf_foas_to_phoas_contract (World : Set) (V : Set) (acc : relation World)
-    (VA: PL.ValueAlgebra V)
+    (VA: PL.LogicVariable V)
      (wfV : WF World V)
     (w : World)
     (env : stringmap V)
@@ -600,12 +600,12 @@ Qed.
   Qed. 
  
   
-  Instance WF_VA_R: WF_VA  R_valueAlgebra  wfr  := {
+  Instance WF_VA_R: WF_VA  R_logicVariable  wfr  := {
     wf_lit := wf_lit_expR;
     wf_add := wf_add_expR
   }.
 
-  Instance WF_VA_exp: WF_VA  PL.expression_valueAlgebra  wfe  := {
+  Instance WF_VA_exp: WF_VA  PL.expression_logicVariable  wfe  := {
     wf_lit := wf_lit_exp;
     wf_add := wf_add_exp
   }.
@@ -626,7 +626,7 @@ Qed.
   Qed.
 
 
-     Definition simplePropInverse : phoas_to_foas ∅ (@foas_to_phoas ( PL.Exp) PL.expression_valueAlgebra (empty : stringmap (PL.Exp)) simpleProp ) = simpleProp.
+     Definition simplePropInverse : phoas_to_foas ∅ (@foas_to_phoas ( PL.Exp) PL.expression_logicVariable (empty : stringmap (PL.Exp)) simpleProp ) = simpleProp.
      Proof.
      
      vm_compute. reflexivity.  
@@ -782,7 +782,7 @@ Definition Wstore (V A:Set) := (A -> stringmap V -> Phoas.prop V) -> stringmap V
   Variable (acc : relation World).
   Variable  (pre : PreOrder acc).
   Variable ( V A: Set) (wfA :WF World A) (wfV :WF World V).
-  Variable (VA : PL.ValueAlgebra V).
+  Variable (VA : PL.LogicVariable V).
   Variable (weaken : Phoas.Weakening acc wfV).
 
 Definition WfFunc {World: Set} {A B : Set} (wfA :WF World A) (wfB : WF World B) : WF World (A -> B) :=
@@ -980,7 +980,7 @@ Lemma wflookupWstore_safe  (w:World) (s : string)  : Wf_Wstore wfV (Wfoption wfV
   
   
 
-  Fixpoint exec_exp (V:Set) (VA : PL.ValueAlgebra V) (e : PL.Exp) : (Wstore V V):= 
+  Fixpoint exec_exp (V:Set) (VA : PL.LogicVariable V) (e : PL.Exp) : (Wstore V V):= 
   match e with
   | PL.Lit n => ret (VA.(PL.lit) n)
   | PL.Var x => lookupWstore x
@@ -1049,7 +1049,7 @@ Qed.
 
   
   
-  Fixpoint exec_stm (V:Set) (VA : PL.ValueAlgebra V) (stm : PL.Stm) : (Wstore V V):= 
+  Fixpoint exec_stm (V:Set) (VA : PL.LogicVariable V) (stm : PL.Stm) : (Wstore V V):= 
   match stm with
   | PL.Expr e => exec_exp VA e
   | PL.Let var e body => bind (exec_exp VA e)                    (fun  x =>
@@ -1091,7 +1091,7 @@ Qed.
 
 
   
-  Definition wp (V:Set) (VA : PL.ValueAlgebra V) (stm : PL.Stm) (post : V -> stringmap V -> Phoas.prop V)  (initStore : stringmap V) : Phoas.prop V :=
+  Definition wp (V:Set) (VA : PL.LogicVariable V) (stm : PL.Stm) (post : V -> stringmap V -> Phoas.prop V)  (initStore : stringmap V) : Phoas.prop V :=
   (exec_stm VA stm) post initStore.
 
   Lemma wf_wp
@@ -1108,7 +1108,7 @@ Qed.
   Definition ignore_map (V:Set) (post : V->Phoas.prop V) : V->stringmap V->Phoas.prop V :=
   fun result _ => post result.
   
-  Fixpoint vc (V:Set) (VA : PL.ValueAlgebra V) (contract : Phoas.Contract V) : Phoas.prop V :=
+  Fixpoint vc (V:Set) (VA : PL.LogicVariable V) (contract : Phoas.Contract V) : Phoas.prop V :=
   match contract with
     | Phoas.ForallC f => Phoas.Forall (fun v => vc VA (f v))
     | Phoas.HoareTriple pre prog arg post =>
@@ -1149,16 +1149,16 @@ Qed.
 
 
   Definition vc_hoas (c : Foas.Contract) : Hoas.prop :=
-  Hoas.phoas_to_hoas (vc (PL.value_valueAlgebra) ((Phoas.foas_contract_to_phoas_contract PL.value_valueAlgebra  ∅ c))).
+  Hoas.phoas_to_hoas (vc (PL.value_logicVariable) ((Phoas.foas_contract_to_phoas_contract PL.value_logicVariable  ∅ c))).
   
   Definition vc_foas (c : Foas.Contract) : Foas.prop :=
-  Phoas.phoas_to_foas ∅ (vc (PL.expression_valueAlgebra) (Phoas.foas_contract_to_phoas_contract PL.expression_valueAlgebra  ∅ c)).
+  Phoas.phoas_to_foas ∅ (vc (PL.expression_logicVariable) (Phoas.foas_contract_to_phoas_contract PL.expression_logicVariable  ∅ c)).
 
 
   Definition vc_just_hoas (c : Phoas.Contract PL.Value) : Hoas.prop :=
-  Hoas.phoas_to_hoas (vc (PL.value_valueAlgebra) c).
+  Hoas.phoas_to_hoas (vc (PL.value_logicVariable) c).
   
-  Lemma vc_hoas_unfold: forall (c  : Foas.Contract ), vc_hoas c = vc_just_hoas (Phoas.foas_contract_to_phoas_contract PL.value_valueAlgebra  ∅ c).
+  Lemma vc_hoas_unfold: forall (c  : Foas.Contract ), vc_hoas c = vc_just_hoas (Phoas.foas_contract_to_phoas_contract PL.value_logicVariable  ∅ c).
   Proof.
   intros. 
   reflexivity.
@@ -1226,7 +1226,7 @@ End well_formed_generation.
   (* If the generated weakest precondition holds, running the program will yield a result for wich the postcondition holds.  *)
   (* It might be better to prove this for wp with arbitrary input and map and applying here for a better induction hypothesis  *)
   Lemma wpPreconditionHoas : forall  (post : PL.Value->Hoas.prop) (stm : PL.Stm)  (inp : PL.Value) (arg : string) result fname,       
-  (Phoas.semant (vcg.wp PL.value_valueAlgebra stm (vcg.ignore_map (Hoas.hoas_to_phoas ∘  post)) {[arg := inp]})) 
+  (Phoas.semant (vcg.wp PL.value_logicVariable stm (vcg.ignore_map (Hoas.hoas_to_phoas ∘  post)) {[arg := inp]})) 
   ->
   (PL.evalProg (PL.Fun fname arg stm ) inp result)-> Hoas.semant (post result ).
   Proof.
@@ -1285,7 +1285,7 @@ End well_formed_generation.
   apply (Hwp).
   - intros. apply H in H1.
     unfold "∘".
-    pose proof (Hoas.preserves_semantics (vcg.wp PL.value_valueAlgebra body
+    pose proof (Hoas.preserves_semantics (vcg.wp PL.value_logicVariable body
               (vcg.ignore_map
                 (λ result : PL.Value,
                     Hoas.hoas_to_phoas (post inp result)))
@@ -1324,17 +1324,17 @@ Definition int_exp : Related (stringmap PL.Value) PL.Value PL.Exp :=
 
  
 
-Class Rel_VA (World : Set) (V1 V2:Set) (VA1 : PL.ValueAlgebra V1) ( VA2: PL.ValueAlgebra V2)
+Class Rel_VA (World : Set) (V1 V2:Set) (VA1 : PL.LogicVariable V1) ( VA2: PL.LogicVariable V2)
 (Rel_V: Related World V1 V2)  := {
     rel_lit : forall Γ n, Rel_V Γ (VA1.(PL.lit) n) (VA2.(PL.lit) n);
     rel_add : forall Γ v1 v2 v1' v2', Rel_V Γ v1 v2-> Rel_V Γ v1' v2' -> Rel_V Γ (VA1.(PL.add) v1 v1') (VA2.(PL.add) v2 v2');
 }.
-Definition rel_lit_int_exp : forall Γ n, int_exp Γ (PL.value_valueAlgebra.(PL.lit) n) (PL.expression_valueAlgebra.(PL.lit) n).
+Definition rel_lit_int_exp : forall Γ n, int_exp Γ (PL.value_logicVariable.(PL.lit) n) (PL.expression_logicVariable.(PL.lit) n).
 Proof.
 intros.
 constructor.
 Qed. 
-Definition rel_add_int_exp : forall Γ v1 v2 v1' v2', int_exp Γ v1 v2-> int_exp Γ v1' v2' -> int_exp Γ (PL.value_valueAlgebra.(PL.add) v1 v1') (PL.expression_valueAlgebra.(PL.add) v2 v2').
+Definition rel_add_int_exp : forall Γ v1 v2 v1' v2', int_exp Γ v1 v2-> int_exp Γ v1' v2' -> int_exp Γ (PL.value_logicVariable.(PL.add) v1 v1') (PL.expression_logicVariable.(PL.add) v2 v2').
 Proof.
 intros. 
 constructor; [apply H |apply H0].
@@ -1342,7 +1342,7 @@ Qed.
 
 
 
-Instance rel_va_int_exp : Rel_VA  (PL.value_valueAlgebra) (PL.expression_valueAlgebra) int_exp:=
+Instance rel_va_int_exp : Rel_VA  (PL.value_logicVariable) (PL.expression_logicVariable) int_exp:=
   {
   rel_lit := rel_lit_int_exp;
   rel_add := rel_add_int_exp
@@ -1425,7 +1425,7 @@ Section Related_props.
   Variable (acc : relation World).
   Variable  (preOrd : PreOrder acc).
   Variable ( V1 V2: Set) (rel_V :Related World V1 V2).
-  Variable (VAV1 : PL.ValueAlgebra V1) (VAV2 : PL.ValueAlgebra V2).
+  Variable (VAV1 : PL.LogicVariable V1) (VAV2 : PL.LogicVariable V2).
   Variable (Hweaken : Related_Weakening acc rel_V).
 
 
@@ -1898,7 +1898,7 @@ Lemma rel_phoas_to_hoas_foas  (Γ : stringmap PL.Value) (p1 : Phoas.prop (PL.Val
 
 
   Lemma int_exp_interp_to_va_crash {Γ : stringmap PL.Value} {v : PL.Value} {e : PL.Exp} :
-  int_exp Γ v e -> PL.interp_to_va_crash PL.value_valueAlgebra Γ e = Some v.
+  int_exp Γ v e -> PL.interp_to_va_crash PL.value_logicVariable Γ e = Some v.
   Proof.
     unfold int_exp.
     intro Hrel.
@@ -1978,7 +1978,7 @@ injection Heq as Hforallvar_eq Hpre_eq Hprog_eq Harg_eq HresultName_eq Hpost_eq.
 
 
 Lemma rel_interpret_exp (store : stringmap PL.Value) (e : PL.Exp) (wf_e : PL.wfexp (dom store) e) :
-  rel_value_exp store (PL.interp_to_va_default PL.value_valueAlgebra store e) e.
+  rel_value_exp store (PL.interp_to_va_default PL.value_logicVariable store e) e.
   Proof.
   induction wf_e.
   - simpl. constructor.
@@ -1993,7 +1993,7 @@ Lemma rel_interpret_exp (store : stringmap PL.Value) (e : PL.Exp) (wf_e : PL.wfe
   
 Lemma rel_foas_to_hoas (store : stringmap PL.Value) (p : Foas.prop) :
   Foas.wfprop (dom store) p ->
-  rel_hoas_foas store (Hoas.phoas_to_hoas (Phoas.foas_to_phoas PL.value_valueAlgebra store p)) p . 
+  rel_hoas_foas store (Hoas.phoas_to_hoas (Phoas.foas_to_phoas PL.value_logicVariable store p)) p . 
  
   Proof.
   revert store.
@@ -2009,7 +2009,7 @@ Lemma rel_foas_to_hoas (store : stringmap PL.Value) (p : Foas.prop) :
 
 
   Lemma rel_contract_foas_to_hoas (c : Foas.Contract) (wf_c : Foas.wfContract c) : 
-          rel_contract (Hoas.phoas_to_hoas_contract (Phoas.foas_contract_to_phoas_contract PL.value_valueAlgebra empty c)) c.
+          rel_contract (Hoas.phoas_to_hoas_contract (Phoas.foas_contract_to_phoas_contract PL.value_logicVariable empty c)) c.
   Proof.
   destruct c.
   simpl.
@@ -2040,7 +2040,7 @@ Lemma rel_foas_to_hoas (store : stringmap PL.Value) (p : Foas.prop) :
   
 (* translating a Foas contract to a Hoas contract preserves its semantics *)
 Lemma contract_translation_preserves_semantics (c : Foas.Contract) (wf_c : Foas.wfContract c):
- Hoas.contract_semant (Hoas.phoas_to_hoas_contract (Phoas.foas_contract_to_phoas_contract PL.value_valueAlgebra empty c)) -> Foas.contract_semant c .
+ Hoas.contract_semant (Hoas.phoas_to_hoas_contract (Phoas.foas_contract_to_phoas_contract PL.value_logicVariable empty c)) -> Foas.contract_semant c .
 Proof.
 intros Hoas_semant.
 
@@ -2065,7 +2065,7 @@ pose proof (adequate) as Hadequate.
 pose proof (contract_translation_preserves_semantics) as Hpreserve.
 apply (Hpreserve c);eauto.
 (*specialize (Hadequate (Phoas.foas_contract_to_phoas_contract
-PL.value_valueAlgebra ∅ c))  *)
+PL.value_logicVariable ∅ c))  *)
 
 Qed.
 
