@@ -4,24 +4,19 @@ From Stdlib Require Import
   Relations.Relation_Definitions
   ZArith.BinInt.
 
-Require Import Coq.Strings.HexString.
-Require Import Coq.ZArith.BinInt.
-Require Import Coq.ZArith.ZArith.
-Require Import Coq.Strings.String.
-Require Import Coq.Numbers.DecimalString.
-Require Import Coq.Numbers.DecimalZ.
+From Stdlib Require Import ZArith.ZArith Strings.String.
 Require Import stdpp.gmap.
-Require Import Coq.Program.Equality.
+From Stdlib Require Import Program.Equality.
 
 From stdpp Require Import options.
-From Coq Require Import Program.Basics.
+From Stdlib Require Import Program.Basics.
 Local Open Scope program_scope.
 From stdpp Require Import
   gmap mapset option stringmap.
 
 Import EqNotations.
 Set Implicit Arguments.
-Require Import Coq.Logic.FunctionalExtensionality.
+From Stdlib Require Import Logic.FunctionalExtensionality.
 
 From Phoas Require Import programmingLanguage foas phoas hoas vcGen.
 
@@ -51,64 +46,19 @@ From Phoas Require Import programmingLanguage foas phoas hoas vcGen.
 
   
 
-   Lemma translation_irrelevance : forall c pre prog post,
-    Hoas.phoas_to_hoas_contract c =  Hoas.ForallC  (λ v : PL.Value,
-                                                    Hoas.HoareTriple (pre v) prog v (post v))
-  -> 
-       c = Phoas.ForallC (λ v : PL.Value,
-       Phoas.HoareTriple (Hoas.hoas_to_phoas (pre v)) prog v (fun result => Hoas.hoas_to_phoas (post v result))).
-       
-    Proof.
-    intros.
-    pose proof (f_equal Hoas.hoas_to_phoas_contract H) as H'.
-    pose proof (Hoas.inverse_contract c) as H''.
-    rewrite H'' in H'.
-    simpl in H'.
-    apply H'.
-  Qed.
-
-
   (* when the vc returns a hoas proposition, it's correct wrt operational semantics of the Hoas contract *)
-  Definition adequate (c : Phoas.Contract PL.Value) :
-   Hoas.semant (vcg.vc_just_hoas c) ->  Hoas.contract_semant (Hoas.phoas_to_hoas_contract c).
+  Lemma adequate (c : Hoas.Contract) :
+   Hoas.semant (vcg.vc_just_hoas c) ->  Hoas.contract_semant c.
   Proof.
-  
   unfold Hoas.contract_semant.
-  intros.
-  (*intros.*)
-  unfold vcg.vc_just_hoas in H.
-  
-  simpl in H.
-  apply translation_irrelevance in H0.
-  rewrite H0 in H.
-  destruct prog.
-  simpl in H.
-  pose proof (Hoas.inverse_formula2 (pre inp)).
-  specialize (H inp).
-  rewrite H3 in H.
-  
-  
-  Check (λ result : PL.Value,
-                  Hoas.hoas_to_phoas
-                    (post inp result)).
-  Check wpPreconditionHoas.
-
-  pose proof (@wpPreconditionHoas (post inp) body inp param result functionName) as Hwp.
-  intros.
-  apply (Hwp).
-  - intros. apply H in H1.
-    unfold "∘".
-    pose proof (Hoas.preserves_semantics (vcg.wp PL.valueLogicVariable body
-              (vcg.ignore_map
-                (λ result : PL.Value,
-                    Hoas.hoas_to_phoas (post inp result)))
-              {[param := inp]})).
-
-    
-    rewrite H4 in H1.
-    exact H1.        
-    - intros. exact H2.
-
+  intros Hvc pre prog post Heq inp result Hpre Heval.
+  subst c.
+  destruct prog as [functionName param body].
+  simpl in Hvc.
+  specialize (Hvc inp Hpre).
+  apply (@wpPreconditionHoas (post inp) body inp param result functionName).
+  - apply Hoas.preserves_semantics. exact Hvc.
+  - exact Heval.
   Qed.
-  
+
   End Hoas_Sound.

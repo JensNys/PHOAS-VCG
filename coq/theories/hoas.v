@@ -4,24 +4,19 @@ From Stdlib Require Import
   Relations.Relation_Definitions
   ZArith.BinInt.
 
-Require Import Coq.Strings.HexString.
-Require Import Coq.ZArith.BinInt.
-Require Import Coq.ZArith.ZArith.
-Require Import Coq.Strings.String.
-Require Import Coq.Numbers.DecimalString.
-Require Import Coq.Numbers.DecimalZ.
+From Stdlib Require Import ZArith.ZArith Strings.String.
 Require Import stdpp.gmap.
-Require Import Coq.Program.Equality.
+From Stdlib Require Import Program.Equality.
 
 From stdpp Require Import options.
-From Coq Require Import Program.Basics.
+From Stdlib Require Import Program.Basics.
 Local Open Scope program_scope.
 From stdpp Require Import
   gmap mapset option stringmap.
 
 Import EqNotations.
 Set Implicit Arguments.
-Require Import Coq.Logic.FunctionalExtensionality.
+From Stdlib Require Import Logic.FunctionalExtensionality.
 
 From Phoas Require Import programmingLanguage foas phoas.
 
@@ -63,23 +58,21 @@ Inductive prop : Set :=
      | ForallC (f: PL.Value -> Contract)
      | HoareTriple (pre : prop) (program : PL.Prog) (arg:PL.Value) (post :PL.Value -> prop).
 
-
-
-
-  Fixpoint phoas_to_hoas_contract (c : Phoas.Contract PL.Value ) : Contract :=
+  (* the HOAS contract of a FOAS contract: the logic variables become meta-level values *)
+  Definition foas_contract_to_hoas_contract (c : Foas.Contract) : Contract :=
     match c with
-      | Phoas.ForallC f => ForallC (fun v => phoas_to_hoas_contract (f v))
-      | Phoas.HoareTriple pre prog arg post => HoareTriple (phoas_to_hoas pre) prog arg (fun v => phoas_to_hoas (post v))
-      end.
+    | Foas.MkContract forallVar pre prog arg result post =>
+        ForallC (fun v =>
+          HoareTriple (phoas_to_hoas (Phoas.foas_to_phoas PL.valueLogicVariable {[ forallVar := v ]} pre))
+            prog v
+            (fun r => phoas_to_hoas (Phoas.foas_to_phoas PL.valueLogicVariable ({[ forallVar := v ]} ∪ {[ result := r ]}) post)))
+    end.
 
-  Fixpoint hoas_to_phoas_contract (c : Contract) : Phoas.Contract PL.Value  :=
-    match c with
-      | ForallC f => Phoas.ForallC (fun v => hoas_to_phoas_contract (f v))
-      | HoareTriple pre prog arg post => Phoas.HoareTriple (hoas_to_phoas pre) prog arg (fun v => hoas_to_phoas (post v))
-      end.
+
 
 
   Lemma inverse_formula (p: Phoas.prop PL.Value) : hoas_to_phoas (phoas_to_hoas p) = p.
+  Proof.
   induction p.
   - simpl. reflexivity.
   - simpl. reflexivity.
@@ -90,6 +83,7 @@ Inductive prop : Set :=
   - simpl. reflexivity.
   Qed.
   Lemma inverse_formula2 (p: prop) : phoas_to_hoas (hoas_to_phoas p) = p.
+  Proof.
   induction p.
   - simpl. reflexivity.
   - simpl. reflexivity.
@@ -102,16 +96,6 @@ Inductive prop : Set :=
 
 
 
-  Lemma inverse_contract (c: Phoas.Contract PL.Value): hoas_to_phoas_contract (phoas_to_hoas_contract c) = c.
-  induction c.
-  -  simpl. f_equal.  extensionality v. apply H.
-  - simpl. f_equal. 
-    + apply (inverse_formula ).
-    + extensionality v. apply inverse_formula.
-  Qed.
-  
-  
-  
   Fixpoint semant  (p : prop ) : Prop :=
     match p with
     | T => True

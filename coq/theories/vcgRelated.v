@@ -4,26 +4,21 @@ From Stdlib Require Import
   Relations.Relation_Definitions
   ZArith.BinInt.
 
-Require Import Coq.Strings.HexString.
-Require Import Coq.ZArith.BinInt.
-Require Import Coq.ZArith.ZArith.
-Require Import Coq.Strings.String.
-Require Import Coq.Numbers.DecimalString.
-Require Import Coq.Numbers.DecimalZ.
+From Stdlib Require Import ZArith.ZArith Strings.String.
 Require Import stdpp.gmap.
-Require Import Coq.Program.Equality.
+From Stdlib Require Import Program.Equality.
 
 From stdpp Require Import options.
-From Coq Require Import Program.Basics.
+From Stdlib Require Import Program.Basics.
 Local Open Scope program_scope.
 From stdpp Require Import
   gmap mapset option stringmap.
 
 Import EqNotations.
 Set Implicit Arguments.
-Require Import Coq.Logic.FunctionalExtensionality.
+From Stdlib Require Import Logic.FunctionalExtensionality.
 
-From Phoas Require Import programmingLanguage foas phoas hoas vcGen hoasSoundness.
+From Phoas Require Import programmingLanguage foas phoas hoas vcGen vcgWellFormed hoasSoundness.
 
 (* Executions of the vcg on related logic variables are related, and the closing soundness statements *)
 
@@ -210,12 +205,14 @@ Delimit Scope rel_scope with R.
   Notation "□ A"    := (Box A%R) (at level 50, A at level 9): rel_scope.
 
 Lemma refl : forall w, acc w w.
+  Proof using World acc preOrd.
   reflexivity.
   Qed.
   Hint Resolve refl : core.
 
   Lemma trans : forall w w' w'', acc w w' -> acc w' w'' -> acc w w''.
 
+  Proof using World acc preOrd.
   etransitivity ;eauto.
   Qed.
   Hint Resolve trans : core.
@@ -240,17 +237,6 @@ Lemma refl : forall w, acc w w.
     - constructor. destruct  Hweaken. eapply Hweaken;eauto.
   Qed.
 
-Inductive rel_Contract (w:World) :  Phoas.Contract V1 -> Phoas.Contract V2 -> Prop :=
-  | Rel_ForallC {f1 : V1 -> Phoas.Contract V1} {f2 : V2 -> Phoas.Contract V2} :
-        (forall (v1 : V1) (v2 : V2) w', acc w w' -> rel_V w' v1 v2 -> rel_Contract  w' (f1 v1) (f2 v2)) ->
-        rel_Contract w (Phoas.ForallC f1) (Phoas.ForallC f2)
-  | Rel_HoareTriple (pre1 : Phoas.prop V1) (pre2 : Phoas.prop V2) (program : PL.Prog) (arg1:V1) (arg2:V2) (post1 :V1 -> Phoas.prop V1) (post2 :V2 -> Phoas.prop V2):
-        rel_prop acc rel_V w pre1 pre2 ->
-        rel_V w arg1 arg2->
-        (forall (result1 : V1) (result2 : V2) w', acc w w' -> rel_V w' result1 result2 ->
-          rel_prop acc rel_V w' (post1 result1) (post2 result2)) -> 
-          rel_Contract w (Phoas.HoareTriple pre1 program arg1 post1) (Phoas.HoareTriple pre2 program arg2 post2)
-          .
 
 
 
@@ -273,6 +259,7 @@ Definition Rel_Wstore ( V1 V2 A1 A2: Set) (rel_V :Related World V1 V2) (rel_A :R
 
   Lemma rel_Ret  (C1 C2 : Set) (w:World) (c1 : C1) (c2 : C2) (rel_C : Related World C1 C2) (rel_c : rel_C w c1 c2) : Rel_Wstore rel_V rel_C w (vcg.ret c1) (vcg.ret c2).
 
+  Proof using V1 V2 World acc preOrd rel_V.
   intros post1 post2 Hpost store Hstore.
   eapply Hpost;eauto.
   Qed.
@@ -280,6 +267,7 @@ Definition Rel_Wstore ( V1 V2 A1 A2: Set) (rel_V :Related World V1 V2) (rel_A :R
   Lemma rel_Bind  (C1 C2 B1 B2: Set) (rel_C : Related World C1 C2)  (rel_B :Related World B1 B2) 
     (w:World) (c1 : vcg.Wstore V1 C1) (c2 : vcg.Wstore V2 C2) (k1 : C1->vcg.Wstore V1 B1) (k2 : C2->vcg.Wstore V2 B2) 
     (Rel_c : Rel_Wstore rel_V rel_C w c1 c2) (rel_k : Box ( Rel_lift rel_V rel_C rel_B ) w k1 k2) : Rel_Wstore rel_V rel_B w (vcg.bind c1 k1) (vcg.bind c2 k2).
+    Proof using V1 V2 World acc preOrd rel_V.
     unfold vcg.bind.
     unfold Rel_Wstore.
     unfold Rel_Func.
@@ -290,6 +278,7 @@ Definition Rel_Wstore ( V1 V2 A1 A2: Set) (rel_V :Related World V1 V2) (rel_A :R
     Qed.
 
   Lemma rel_lookupWstore  (w:World) (s : string)  : Rel_Wstore rel_V rel_V w (vcg.lookupWstore s) (vcg.lookupWstore s).
+  Proof using V1 V2 World acc preOrd rel_V.
   unfold vcg.lookupWstore.
   unfold Rel_Wstore.
   intros post1 post2 H store1 store2 rel_Store .
@@ -302,6 +291,7 @@ Definition Rel_Wstore ( V1 V2 A1 A2: Set) (rel_V :Related World V1 V2) (rel_A :R
   
   Lemma rel_lookupWstore_safe  (w:World) (s : string)  : Rel_Wstore rel_V (Rel_option rel_V) w (vcg.lookupWstore_safe s) (vcg.lookupWstore_safe s).
 
+  Proof using V1 V2 World acc preOrd rel_V.
   unfold vcg.lookupWstore_safe.
   unfold Rel_Wstore.
   unfold Rel_Func.
@@ -312,6 +302,7 @@ Definition Rel_Wstore ( V1 V2 A1 A2: Set) (rel_V :Related World V1 V2) (rel_A :R
  Qed.
 
 Lemma rel_insertWstore  (w:World) (varname : string) (v1:V1) (v2: V2) (rel_v : rel_V w v1 v2) :  (Rel_Wstore rel_V rel_unit w (vcg.insertWstore varname v1) (vcg.insertWstore varname v2)).
+  Proof using V1 V2 World acc preOrd rel_V.
   unfold Rel_Wstore, Rel_Func, Rel_Post, Box, vcg.insertWstore ,"↣" ,Rel_prop.
 
   intros post1 post2 Hpost store1 store2 rel_Store.
@@ -334,6 +325,7 @@ Lemma rel_insertWstore  (w:World) (varname : string) (v1:V1) (v2: V2) (rel_v : r
 
 
   Lemma rel_deleteWstore  (w:World) (varname : string)  : Rel_Wstore rel_V rel_unit w (vcg.deleteWstore varname) (vcg.deleteWstore varname).
+  Proof using V1 V2 World acc preOrd rel_V.
   unfold Rel_Wstore, Rel_Func, Rel_Post, Box, vcg.insertWstore ,"↣" ,Rel_prop.
   intros post1 post2 Hpost store1 store2 rel_Store.
   specialize (Hpost w (refl w) tt tt I ).
@@ -390,6 +382,7 @@ Lemma rel_exec_stm
   (rel_VA : Rel_VA VAV1 VAV2 rel_V) (stm : PL.Stm)  
     (w:World) 
       : Rel_Wstore rel_V rel_V w (vcg.exec_stm VAV1 stm) (vcg.exec_stm VAV2 stm).
+Proof using Hweaken V1 V2 VAV1 VAV2 World acc preOrd rel_V.
 revert w.
       induction stm; intros w;simpl.
       - apply rel_exec_exp;eauto.
@@ -422,33 +415,6 @@ Lemma rel_wp
     eapply rel_exec_stm; eauto.
   Qed.
 
-  Lemma rel_vc
-   (rel_VA : Rel_VA VAV1 VAV2 rel_V) (c1 : Phoas.Contract V1) (c2 : Phoas.Contract V2) (w : World): 
-    rel_Contract w c1 c2 ->
-    Rel_prop rel_V w (vcg.vc VAV1 c1) (vcg.vc VAV2 c2).
-  Proof using preOrd Hweaken.
-  intro rel_contract.
-  induction rel_contract.
-  - constructor.
-  intros v1 v2 w' Hacc Hv.
-  apply H0;eauto.
- 
-    (* HoareTriple *)
-    - simpl.  
-      destruct program as [functionName param body].
-      constructor.
-      + eauto.
-      + apply rel_wp; auto.
-        * 
-          intros w' Hacc result1 result2 Hresult store1 store2 Hstore.
-          unfold vcg.ignore_map.
-          apply H1; eauto.
-        * 
-          intros s .
-          destruct (decide (s = param)) as [-> | Hne].
-          ** rewrite !lookup_singleton_eq. constructor. eauto.
-          ** rewrite !lookup_singleton_ne;eauto. constructor.
-Qed.
 
 
 Lemma rel_interp_to_va_default (rel_VA : Rel_VA VAV1 VAV2 rel_V) (store1 : stringmap V1) (store2 : stringmap V2) (e : PL.Exp)
@@ -520,67 +486,57 @@ induction foasprop; intros store1 store2 w rel_Store; simpl.
     eapply (weaken0 w w' v0 v3 Hacc H); auto.
 Qed.
 
-Lemma rel_foas_to_phoas_contract 
-    (w : World)
-    (store1 : stringmap V1)
-    (store2 : stringmap V2)
-    (c : Foas.Contract) 
-    (rel_VA :  Rel_VA VAV1 VAV2 rel_V)
-    (wf_c : Foas.wfContract c)
-    :
-    
-    rel_Contract w
-      (Phoas.foas_contract_to_phoas_contract VAV1 store1 c) (Phoas.foas_contract_to_phoas_contract VAV2 store2 c).
-Proof using Hweaken V1 V2 VAV1 VAV2 World acc preOrd rel_V.
-destruct c as [forallVar pre prog arg result post].
-  
-  
-  (* the translation wraps in ForallC *)
-  simpl. apply Rel_ForallC.
-  intros v1 v2 w' Hacc HrelV.
-  (* now prove WfHoareTriple *)
+  Lemma rel_vc
+   (rel_VA : Rel_VA VAV1 VAV2 rel_V) (c : Foas.Contract) (wf_c : Foas_wf.wfContract c) (w : World):
+    Rel_prop rel_V w (vcg.vc VAV1 c) (vcg.vc VAV2 c).
+  Proof using preOrd Hweaken.
+  destruct c as [forallVar pre prog arg result post].
+  destruct prog as [functionName param body].
+  simpl.
+  (* the logic variable of the contract *)
   constructor.
-  - 
-    eapply rel_foas_to_phoas  ;eauto.
-    
-     intro s.
-     destruct (decide (s = forallVar)) as [-> | Hne].
-     -- rewrite !lookup_singleton_eq.
-      constructor.
-      auto.
-     -- simpl.
-      rewrite !lookup_singleton_ne;eauto.
-      constructor.
-
-  - auto.
-  - 
-    intros result_v1 result_v2 w'' Hacc' Hwfresult.
-    eapply rel_foas_to_phoas  ;eauto.
-
-
-    intros s.
-    (* a lookup in the union comes from either the left or the right singleton *)
-    
-    rewrite !lookup_union.
+  intros v1 v2 w' Hacc HrelV.
+  constructor.
+  (* precondition *)
+  - eapply rel_foas_to_phoas; eauto.
+    intro s.
     destruct (decide (s = forallVar)) as [-> | Hne].
-    + rewrite !lookup_singleton_eq.
-      rewrite !lookup_singleton_ne;eauto.
-      ++ rewrite !(right_id_L None (∪)).  (* Some v1 ∪ None = Some v1 *)
-         constructor.
-         destruct Hweaken.
-         apply (weaken0 w' w'' v1 v2 Hacc' HrelV).
-      ++ destruct wf_c. destruct p. eauto.
-      ++ destruct wf_c. destruct p. eauto.
-    + destruct (decide (s = result)) as [-> | Hneres].
-    ++ rewrite !lookup_singleton_eq.
-      rewrite !lookup_singleton_ne;eauto.
-      rewrite !(left_id_L None (∪)).  (* Some v1 ∪ None = Some v1 *)
-         constructor.
-         eauto.
-    ++ rewrite !lookup_singleton_ne;eauto.
-       rewrite !(left_id_L None (∪)).
-       constructor.
+    + rewrite !lookup_singleton_eq. constructor. auto.
+    + rewrite !lookup_singleton_ne; eauto. constructor.
+  (* weakest precondition of the body *)
+  - apply rel_wp; auto.
+    + (* postcondition *)
+      intros w'' Hacc' result_v1 result_v2 Hwfresult store1 store2 Hstore.
+      unfold vcg.ignore_map.
+      eapply rel_foas_to_phoas; eauto.
+      intros s.
+      (* a lookup in the union comes from either the left or the right singleton *)
+      rewrite !lookup_union.
+      destruct (decide (s = forallVar)) as [-> | Hne].
+      * rewrite !lookup_singleton_eq.
+        rewrite !lookup_singleton_ne; eauto.
+        -- rewrite !(right_id_L None (∪)).
+           constructor.
+           destruct Hweaken.
+           apply (weaken w' w'' v1 v2 Hacc' HrelV).
+        -- destruct wf_c. destruct p. eauto.
+        -- destruct wf_c. destruct p. eauto.
+      * destruct (decide (s = result)) as [-> | Hneres].
+        -- rewrite !lookup_singleton_eq.
+           rewrite !lookup_singleton_ne; eauto.
+           rewrite !(left_id_L None (∪)).
+           constructor.
+           eauto.
+        -- rewrite !lookup_singleton_ne; eauto.
+           rewrite !(left_id_L None (∪)).
+           constructor.
+    + (* initial store *)
+      intros s.
+      destruct (decide (s = param)) as [-> | Hne].
+      * rewrite !lookup_singleton_eq. constructor. eauto.
+      * rewrite !lookup_singleton_ne; eauto. constructor.
 Qed.
+
 
 
 Inductive rel_hoas_foas : Related (stringmap PL.Value) Hoas.prop Foas.prop :=
@@ -647,12 +603,12 @@ Lemma rel_phoas_to_hoas_foas  (Γ : stringmap PL.Value) (p1 : Phoas.prop (PL.Val
 
 
 
-  Theorem rel_vc_hoas_foas : forall (c : Foas.Contract) , Foas.wfContract c -> rel_hoas_foas ∅ (vcg.vc_hoas c) (vcg.vc_foas c).
+  Theorem rel_vc_hoas_foas : forall (c : Foas.Contract) , Foas_wf.wfContract c -> rel_hoas_foas ∅ (vcg.vc_hoas c) (vcg.vc_foas c).
+  Proof.
   intros c wfc.
   
   apply rel_phoas_to_hoas_foas. (*phoas to foas*)
-  apply (rel_vc _ rel_weaken_int_r rel_va_int_r). (*vc_foas*)
-  apply (rel_foas_to_phoas_contract _ _ _ ∅ ∅ c rel_va_int_r wfc). (*foas to phoas contract*)
+  apply (rel_vc _ rel_weaken_int_r rel_va_int_r c wfc). (*vc*)
   Qed.
 
 
@@ -751,7 +707,7 @@ Lemma rel_interpret_exp (store : stringmap PL.Value) (e : PL.Exp) (wf_e : PL.wfe
 
   
 Lemma rel_foas_to_hoas (store : stringmap PL.Value) (p : Foas.prop) :
-  Foas.wfprop (dom store) p ->
+  Foas_wf.wfprop (dom store) p ->
   rel_hoas_foas store (Hoas.phoas_to_hoas (Phoas.foas_to_phoas PL.valueLogicVariable store p)) p . 
  
   Proof.
@@ -767,8 +723,8 @@ Lemma rel_foas_to_hoas (store : stringmap PL.Value) (p : Foas.prop) :
   Qed.
 
 
-  Lemma rel_contract_foas_to_hoas (c : Foas.Contract) (wf_c : Foas.wfContract c) : 
-          rel_contract (Hoas.phoas_to_hoas_contract (Phoas.foas_contract_to_phoas_contract PL.valueLogicVariable empty c)) c.
+  Lemma rel_contract_foas_to_hoas (c : Foas.Contract) (wf_c : Foas_wf.wfContract c) : 
+          rel_contract (Hoas.foas_contract_to_hoas_contract c) c.
   Proof.
   destruct c.
   simpl.
@@ -798,8 +754,8 @@ Lemma rel_foas_to_hoas (store : stringmap PL.Value) (p : Foas.prop) :
     
   
 (* translating a Foas contract to a Hoas contract preserves its semantics *)
-Lemma contract_translation_preserves_semantics (c : Foas.Contract) (wf_c : Foas.wfContract c):
- Hoas.contract_semant (Hoas.phoas_to_hoas_contract (Phoas.foas_contract_to_phoas_contract PL.valueLogicVariable empty c)) -> Foas.contract_semant c .
+Lemma contract_translation_preserves_semantics (c : Foas.Contract) (wf_c : Foas_wf.wfContract c):
+ Hoas.contract_semant (Hoas.foas_contract_to_hoas_contract c) -> Foas.contract_semant c .
 Proof.
 intros Hoas_semant.
 
@@ -815,7 +771,7 @@ apply Hoas_semant.
 Qed.
 
 (* when the vc returns a hoas proposition, it's correct wrt operational semantics of the foas contract *)
-Theorem hoas_adequate (c : Foas.Contract) (wf_c : Foas.wfContract c): 
+Theorem hoas_adequate (c : Foas.Contract) (wf_c : Foas_wf.wfContract c): 
       Hoas.semant (vcg.vc_hoas c) ->  Foas.contract_semant c.
 Proof.
 intros.
@@ -823,8 +779,6 @@ rewrite vcg.vc_hoas_unfold in *.
 pose proof (adequate) as Hadequate.
 pose proof (contract_translation_preserves_semantics) as Hpreserve.
 apply (Hpreserve c);eauto.
-(*specialize (Hadequate (Phoas.foas_contract_to_phoas_contract
-PL.valueLogicVariable ∅ c))  *)
 
 Qed.
 
@@ -832,7 +786,7 @@ Qed.
 (* 
 If the verification condition is true, running the program with the right precondition will yield a result with the right postcondition.
 *)
-Theorem foas_adequate (c : Foas.Contract) (wf_c : Foas.wfContract c): 
+Theorem foas_adequate (c : Foas.Contract) (wf_c : Foas_wf.wfContract c): 
       Foas.semant (vcg.vc_foas c) ->  Foas.contract_semant c.
 Proof.
 intros Foas_semant.

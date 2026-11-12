@@ -4,24 +4,19 @@ From Stdlib Require Import
   Relations.Relation_Definitions
   ZArith.BinInt.
 
-Require Import Coq.Strings.HexString.
-Require Import Coq.ZArith.BinInt.
-Require Import Coq.ZArith.ZArith.
-Require Import Coq.Strings.String.
-Require Import Coq.Numbers.DecimalString.
-Require Import Coq.Numbers.DecimalZ.
+From Stdlib Require Import ZArith.ZArith Strings.String.
 Require Import stdpp.gmap.
-Require Import Coq.Program.Equality.
+From Stdlib Require Import Program.Equality.
 
 From stdpp Require Import options.
-From Coq Require Import Program.Basics.
+From Stdlib Require Import Program.Basics.
 Local Open Scope program_scope.
 From stdpp Require Import
   gmap mapset option stringmap.
 
 Import EqNotations.
 Set Implicit Arguments.
-Require Import Coq.Logic.FunctionalExtensionality.
+From Stdlib Require Import Logic.FunctionalExtensionality.
 
 From Phoas Require Import programmingLanguage foas phoas hoas.
 
@@ -85,29 +80,46 @@ Definition Wstore (V A:Set) := (A -> stringmap V -> Phoas.prop V) -> stringmap V
   Definition ignore_map (V:Set) (post : V->Phoas.prop V) : V->stringmap V->Phoas.prop V :=
   fun result _ => post result.
   
-  Fixpoint vc (V:Set) (VA : PL.LogicVariable V) (contract : Phoas.Contract V) : Phoas.prop V :=
+  (* the verification condition of a FOAS contract, as a PHOAS proposition over any type of logic variables *)
+  Definition vc (V:Set) (VA : PL.LogicVariable V) (contract : Foas.Contract) : Phoas.prop V :=
   match contract with
-    | Phoas.ForallC f => Phoas.Forall (fun v => vc VA (f v))
-    | Phoas.HoareTriple pre prog arg post =>
-      match prog with 
-        | PL.Fun functionName param body => (Phoas.Implies (pre) (wp VA body (ignore_map post) ({[ param := arg ]})))
-      end
+  | Foas.MkContract forallVar pre prog arg result post =>
+      Phoas.Forall (fun v =>
+        match prog with
+        | PL.Fun functionName param body =>
+            Phoas.Implies (Phoas.foas_to_phoas VA {[ forallVar := v ]} pre)
+              (wp VA body
+                 (ignore_map (fun r => Phoas.foas_to_phoas VA ({[ forallVar := v ]} ∪ {[ result := r ]}) post))
+                 {[ param := v ]})
+        end)
   end.
 
   Definition vc_hoas (c : Foas.Contract) : Hoas.prop :=
-  Hoas.phoas_to_hoas (vc (PL.valueLogicVariable) ((Phoas.foas_contract_to_phoas_contract PL.valueLogicVariable  ∅ c))).
-  
+  Hoas.phoas_to_hoas (vc PL.valueLogicVariable c).
+
   Definition vc_foas (c : Foas.Contract) : Foas.prop :=
-  Phoas.phoas_to_foas ∅ (vc Phoas.R_logicVariable (Phoas.foas_contract_to_phoas_contract Phoas.R_logicVariable  ∅ c)).
+  Phoas.phoas_to_foas ∅ (vc Phoas.R_logicVariable c).
 
+  (* the verification condition of a HOAS contract *)
+  Fixpoint vc_just_hoas (c : Hoas.Contract) : Hoas.prop :=
+  match c with
+  | Hoas.ForallC f => Hoas.Forall (fun v => vc_just_hoas (f v))
+  | Hoas.HoareTriple pre prog arg post =>
+      match prog with
+      | PL.Fun functionName param body =>
+          Hoas.Implies pre
+            (Hoas.phoas_to_hoas (wp PL.valueLogicVariable body (ignore_map (Hoas.hoas_to_phoas ∘ post)) {[ param := arg ]}))
+      end
+  end.
 
-  Definition vc_just_hoas (c : Phoas.Contract PL.Value) : Hoas.prop :=
-  Hoas.phoas_to_hoas (vc (PL.valueLogicVariable) c).
-  
-  Lemma vc_hoas_unfold: forall (c  : Foas.Contract ), vc_hoas c = vc_just_hoas (Phoas.foas_contract_to_phoas_contract PL.valueLogicVariable  ∅ c).
+  Lemma vc_hoas_unfold: forall (c : Foas.Contract), vc_hoas c = vc_just_hoas (Hoas.foas_contract_to_hoas_contract c).
   Proof.
-  intros. 
-  reflexivity.
-  Qed. 
+  intros [forallVar pre prog arg result post].
+  destruct prog as [functionName param body].
+  unfold vc_hoas. simpl.
+  f_equal. extensionality v. unfold "∘". simpl.
+  repeat f_equal. extensionality r.
+  symmetry. apply Hoas.inverse_formula.
+  Qed.
 
 End vcg.

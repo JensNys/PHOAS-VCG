@@ -4,24 +4,19 @@ From Stdlib Require Import
   Relations.Relation_Definitions
   ZArith.BinInt.
 
-Require Import Coq.Strings.HexString.
-Require Import Coq.ZArith.BinInt.
-Require Import Coq.ZArith.ZArith.
-Require Import Coq.Strings.String.
-Require Import Coq.Numbers.DecimalString.
-Require Import Coq.Numbers.DecimalZ.
+From Stdlib Require Import ZArith.ZArith Strings.String.
 Require Import stdpp.gmap.
-Require Import Coq.Program.Equality.
+From Stdlib Require Import Program.Equality.
 
 From stdpp Require Import options.
-From Coq Require Import Program.Basics.
+From Stdlib Require Import Program.Basics.
 Local Open Scope program_scope.
 From stdpp Require Import
   gmap mapset option stringmap.
 
 Import EqNotations.
 Set Implicit Arguments.
-Require Import Coq.Logic.FunctionalExtensionality.
+From Stdlib Require Import Logic.FunctionalExtensionality.
 
 
 Inductive Relop : Set :=

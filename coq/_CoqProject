@@ -1,4 +1,3 @@
--arg "-w all"
 
 -R theories Phoas
 theories/programmingLanguage.v
