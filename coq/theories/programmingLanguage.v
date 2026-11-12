@@ -441,7 +441,7 @@ Qed.
   Definition bind (A B:Set) (m : R A) (k : A->R B) : R B :=
      fun r => k (m r) r.
   
-  Instance R_logicVariable : PL.LogicVariable (stringset -> PL.Exp) :=
+  Instance R_logicVariable : PL.LogicVariable (R PL.Exp) :=
     {
     lit i:= ret (PL.Lit i);
     add x y := bind x (fun v1 => 
@@ -450,7 +450,9 @@ Qed.
     }.
 
 
-  Fixpoint phoas_to_foas (Γ : stringset) (p : Phoas.prop (PL.Exp)) : Foas.prop :=
+  (* The variables of the PHOAS proposition are readers [R PL.Exp]: expressions
+     that are computed from the set of variable names in scope. *)
+  Fixpoint phoas_to_foas (Γ : stringset) (p : Phoas.prop (R PL.Exp)) : Foas.prop :=
     match p with
     | Phoas.T _ => Foas.T
     | Phoas.F _ => Foas.F
@@ -461,12 +463,15 @@ Qed.
         let x := fresh_string_of_set "x" Γ in
         Foas.Forall x
           (phoas_to_foas (union Γ (singleton x))
-             (f (PL.Var x)))
-    | Phoas.Cmp r a b => Foas.Cmp r (a ) (b)
+             (f (ret (PL.Var x))))
+    | Phoas.Cmp r a b => Foas.Cmp r (a Γ) (b Γ)
     end.
 
+  (* A reader is well-formed in Γ if it produces a well-formed expression in
+     every larger scope. Quantifying over all larger scopes makes [wfr] closed
+     under weakening (a reader may compute something different in a larger scope). *)
   Definition wfr : WF stringset (R PL.Exp) :=
-    fun (Γ : stringset) (m : R PL.Exp)  => PL.wfexp Γ (m Γ).
+    fun (Γ : stringset) (m : R PL.Exp)  => forall Γ', Γ ⊆ Γ' -> PL.wfexp Γ' (m Γ').
 
   Definition wfe  : WF stringset (PL.Exp) :=
     fun (Γ : stringset) (m : PL.Exp) =>
@@ -480,22 +485,23 @@ Qed.
 
 
   
-  Lemma wf_phoas_to_foas  (Γ : stringset) (p : Phoas.prop (PL.Exp)) 
-  (wfp : @Phoas.wfprop stringset subseteq (PL.Exp) wfe Γ p) :
+  Lemma wf_phoas_to_foas  (Γ : stringset) (p : Phoas.prop (R PL.Exp))
+  (wfp : @Phoas.wfprop stringset subseteq (R PL.Exp) wfr Γ p) :
     Foas.wfprop Γ (phoas_to_foas Γ p).
-  Proof. 
+  Proof.
     induction wfp; cbn.
     - constructor.
     - constructor.
     - constructor; auto.
     - constructor; auto.
     - constructor; auto.
-    - constructor.
+    - (* the fresh variable is in scope in the body *)
+      constructor.
       apply H0.
       + set_solver.
-      + constructor.
-      set_solver.
-    - constructor; auto.
+      + intros Γ' Hsub. constructor. set_solver.
+    - (* run both readers in the current scope *)
+      constructor; [apply H | apply H0]; reflexivity.
   Qed.
 
 
@@ -571,18 +577,18 @@ Qed.
   
   Lemma wf_lit_expR: forall Γ n, wfr Γ (PL.lit n).
   Proof.
-  intros.
-  unfold wfr. constructor.
+  intros Γ n Γ' Hsub.
+  constructor.
   Qed.
 
-  
+
 
   Lemma wf_add_expR : forall Γ v1 v2, wfr Γ v1 -> wfr Γ v2 -> wfr Γ (PL.add v1 v2).
-  intros Γ v1 v2 H1 H2.
+  intros Γ v1 v2 H1 H2 Γ' Hsub.
   constructor.
-  - eapply H1.
-  - eapply H2.
-  Qed. 
+  - apply H1. exact Hsub.
+  - apply H2. exact Hsub.
+  Qed.
 
   Lemma wf_lit_exp: forall Γ n, wfe Γ (PL.Lit n).
   Proof.
@@ -622,11 +628,19 @@ Qed.
   - constructor. apply Hsub.  inversion Hwf. apply H0.
   - constructor; inversion Hwf;auto. 
 
-  
+
+  Qed.
+
+  (* wfr is closed under weakening by construction *)
+  Instance weakening_wfr : Weakening subseteq wfr.
+  Proof.
+  constructor.
+  intros Γ Γ' m Hsub Hwf Γ'' Hsub'.
+  apply Hwf. set_solver.
   Qed.
 
 
-     Definition simplePropInverse : phoas_to_foas ∅ (@foas_to_phoas ( PL.Exp) PL.expression_logicVariable (empty : stringmap (PL.Exp)) simpleProp ) = simpleProp.
+     Definition simplePropInverse : phoas_to_foas ∅ (@foas_to_phoas (R PL.Exp) R_logicVariable (empty : stringmap (R PL.Exp)) simpleProp ) = simpleProp.
      Proof.
      
      vm_compute. reflexivity.  
@@ -1152,7 +1166,7 @@ Qed.
   Hoas.phoas_to_hoas (vc (PL.value_logicVariable) ((Phoas.foas_contract_to_phoas_contract PL.value_logicVariable  ∅ c))).
   
   Definition vc_foas (c : Foas.Contract) : Foas.prop :=
-  Phoas.phoas_to_foas ∅ (vc (PL.expression_logicVariable) (Phoas.foas_contract_to_phoas_contract PL.expression_logicVariable  ∅ c)).
+  Phoas.phoas_to_foas ∅ (vc Phoas.R_logicVariable (Phoas.foas_contract_to_phoas_contract Phoas.R_logicVariable  ∅ c)).
 
 
   Definition vc_just_hoas (c : Phoas.Contract PL.Value) : Hoas.prop :=
@@ -1180,8 +1194,8 @@ Theorem wf_vc_foas : forall (c : Foas.Contract), Foas.wfprop empty (vcg.vc_foas 
   intros c.
   
   eapply Phoas.wf_phoas_to_foas. (*phoas to foas*)
-  eapply (vcg.wf_vc set_subseteq_preorder Phoas.weakening_wfe Phoas.WF_VA_exp). (*vc_foas*)
-  apply (Phoas.wf_foas_to_phoas_contract _ _ _ Phoas.WF_VA_exp Phoas.weakening_wfe). (*foas to phoas contract*)
+  eapply (vcg.wf_vc set_subseteq_preorder Phoas.weakening_wfr Phoas.WF_VA_R). (*vc_foas*)
+  apply (Phoas.wf_foas_to_phoas_contract _ _ _ Phoas.WF_VA_R Phoas.weakening_wfr). (*foas to phoas contract*)
 Qed.
 
 
@@ -1383,7 +1397,42 @@ Qed.
 Instance rel_weaken_int_exp : Related_Weakening subseteq int_exp:=
 {
   weaken := weaken_int_exp
-  
+
+  }.
+
+(* Relating values to readers [R PL.Exp]: in every larger store, the reader,
+   run in the scope of that store, gives an expression related to the value.
+   Quantifying over larger stores makes the relation closed under weakening. *)
+Definition int_r : Related (stringmap PL.Value) PL.Value (Phoas.R PL.Exp) :=
+  fun Γ v m => forall Γ', Γ ⊆ Γ' -> int_exp Γ' v (m (dom Γ')).
+
+Definition rel_lit_int_r : forall Γ n, int_r Γ (PL.value_logicVariable.(PL.lit) n) (Phoas.R_logicVariable.(PL.lit) n).
+Proof.
+intros Γ n Γ' Hsub.
+constructor.
+Qed.
+
+Definition rel_add_int_r : forall Γ v1 v2 v1' v2', int_r Γ v1 v2 -> int_r Γ v1' v2' -> int_r Γ (PL.value_logicVariable.(PL.add) v1 v1') (Phoas.R_logicVariable.(PL.add) v2 v2').
+Proof.
+intros Γ v1 v2 v1' v2' H1 H2 Γ' Hsub.
+constructor; [apply H1 | apply H2]; exact Hsub.
+Qed.
+
+Instance rel_va_int_r : Rel_VA (PL.value_logicVariable) (Phoas.R_logicVariable) int_r :=
+  {
+  rel_lit := rel_lit_int_r;
+  rel_add := rel_add_int_r
+  }.
+
+Definition weaken_int_r : forall (Γ Γ' : stringmap PL.Value) (v1 : PL.Value) (v2 : Phoas.R PL.Exp), subseteq Γ Γ' -> int_r Γ v1 v2 -> int_r Γ' v1 v2.
+Proof.
+intros Γ Γ' v1 v2 Hsub Hrel Γ'' Hsub'.
+apply Hrel. etransitivity; eassumption.
+Qed.
+
+Instance rel_weaken_int_r : Related_Weakening subseteq int_r :=
+  {
+  weaken := weaken_int_r
   }.
 
 Section Related_props.
@@ -1854,8 +1903,8 @@ Inductive rel_hoas_foas : Related (stringmap PL.Value) Hoas.prop Foas.prop :=
 
   End Rels.
 
-Lemma rel_phoas_to_hoas_foas  (Γ : stringmap PL.Value) (p1 : Phoas.prop (PL.Value)) (p2 : Phoas.prop (PL.Exp)) 
-  (rel_p : @rel_prop (stringmap PL.Value) subseteq (PL.Value) (PL.Exp) int_exp Γ p1 p2) :
+Lemma rel_phoas_to_hoas_foas  (Γ : stringmap PL.Value) (p1 : Phoas.prop (PL.Value)) (p2 : Phoas.prop (Phoas.R PL.Exp)) 
+  (rel_p : @rel_prop (stringmap PL.Value) subseteq (PL.Value) (Phoas.R PL.Exp) int_r Γ p1 p2) :
     rel_hoas_foas Γ (Hoas.phoas_to_hoas p1) (Phoas.phoas_to_foas (dom Γ) p2).
   Proof. 
     induction rel_p; cbn.
@@ -1864,26 +1913,25 @@ Lemma rel_phoas_to_hoas_foas  (Γ : stringmap PL.Value) (p1 : Phoas.prop (PL.Val
     - constructor; auto.
     - constructor; auto.
     - constructor; auto.
-    - constructor.  
-    intro v.
-    pose proof rel_weaken_int_exp.
-    destruct H1 as [Hweaken'].
-    set (x := fresh_string_of_set "x" (dom w)).
-    unfold "∘".
-    assert (dom w ∪ {[x]} = dom (<[x:=v]> w)).
-    -- rewrite dom_insert_L.
-       set_solver.
-    --
-    rewrite H1.
-    eapply (H0).
-      + Search "⊆".
-      apply insert_subseteq.
-      apply not_elem_of_dom.  
-      apply fresh_string_of_set_fresh.
-      
-      + constructor.
-        rewrite lookup_insert, decide_True by reflexivity. reflexivity.    
-    - constructor; auto.
+    - (* Forall: FOAS binds a fresh name x, HOAS gets an arbitrary value v *)
+      constructor.  
+      intro v.
+      set (x := fresh_string_of_set "x" (dom w)).
+      unfold "∘".
+      assert (Hdom : dom w ∪ {[x]} = dom (<[x:=v]> w)).
+      { rewrite dom_insert_L. set_solver. }
+      rewrite Hdom.
+      apply H0.
+      + (* the extended store is an extension, because x is fresh *)
+        apply insert_subseteq.
+        apply not_elem_of_dom.  
+        apply fresh_string_of_set_fresh.
+      + (* v is related to the reader that always returns Var x *)
+        intros Γ' Hsub.
+        constructor.
+        eapply lookup_weaken; [apply lookup_insert_eq | exact Hsub].
+    - (* Cmp: run the readers in the scope of the current store *)
+      constructor; [apply H | apply H0]; reflexivity.
   Qed.
 
 
@@ -1892,8 +1940,8 @@ Lemma rel_phoas_to_hoas_foas  (Γ : stringmap PL.Value) (p1 : Phoas.prop (PL.Val
   intros c wfc.
   
   apply rel_phoas_to_hoas_foas. (*phoas to foas*)
-  apply (rel_vc _ rel_weaken_int_exp rel_va_int_exp). (*vc_foas*)
-  apply (rel_foas_to_phoas_contract _ _ _ ∅ ∅ c rel_va_int_exp wfc). (*foas to phoas contract*)
+  apply (rel_vc _ rel_weaken_int_r rel_va_int_r). (*vc_foas*)
+  apply (rel_foas_to_phoas_contract _ _ _ ∅ ∅ c rel_va_int_r wfc). (*foas to phoas contract*)
   Qed.
 
 
