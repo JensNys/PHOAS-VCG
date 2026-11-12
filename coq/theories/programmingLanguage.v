@@ -26,6 +26,23 @@ Require Import Coq.Logic.FunctionalExtensionality.
   
 
 
+Inductive Relop : Set :=
+  | Equal
+  | GreaterThan
+  | SmallerThan
+  | GreaterThanEqual
+  | SmallerThanEqual.
+
+(* values of the programming language are integers *)
+Definition semant_Relop (r:Relop) : Z->Z->Prop :=
+    match r with
+      |Equal => eq
+      |SmallerThan => Z.lt
+      |GreaterThan => Z.gt
+      |GreaterThanEqual => Z.ge
+      |SmallerThanEqual => Z.le
+    end.
+
 Module PL.
 Definition Value := Z.
 (*Definition eval_store := listmap.string_map value.*)
@@ -42,23 +59,17 @@ Inductive Prog : Set :=
   Class LogicVariable (V: Set) :=
   {
   lit : PL.Value -> V;
-  add : V -> V -> V
+  add : V -> V -> V;
+  cmp : Relop -> V -> V -> Prop
   }.
   
-  
-  Instance value_logicVariable : LogicVariable (PL.Value) :=
+  #[global] Instance valueLogicVariable : LogicVariable (PL.Value) :=
   {
   lit := id;
-  add := Z.add
-  
+  add := Z.add;
+  cmp := semant_Relop
   }.
   
-  Instance expression_logicVariable : LogicVariable PL.Exp :=
-  {
-  lit := PL.Lit;
-  add := PL.Add
-  
-  }.
   
 (* I use big step semantics because it is closer to the interpreter i already have. 
 The disadvantage of big step semantics is that it doesn't give a semantics to non-terminating programs. 
@@ -148,6 +159,19 @@ intros x H.
         end
     end.
 
+  (* expressions are compared by evaluating them as closed expressions,
+     like comparisons in [Foas.semant'] *)
+  #[global] Instance expLogicVariable : LogicVariable PL.Exp :=
+  {
+  lit := PL.Lit;
+  add := PL.Add;
+  cmp r e1 e2 := match interp_to_va_crash valueLogicVariable ∅ e1,
+                       interp_to_va_crash valueLogicVariable ∅ e2 with
+                 | Some v1, Some v2 => semant_Relop r v1 v2
+                 | _, _ => False
+                 end
+  }.
+
     
   
   
@@ -162,22 +186,6 @@ End PL.
 
 
 
-Inductive Relop : Set :=
-  | Equal
-  | GreaterThan
-  | SmallerThan
-  | GreaterThanEqual
-  | SmallerThanEqual.
-
-Fixpoint semant_Relop (r:Relop) : PL.Value->PL.Value->Prop :=
-    match r with
-      |Equal => eq
-      |SmallerThan => Z.lt
-      |GreaterThan => Z.gt
-      |GreaterThanEqual => Z.ge
-      |SmallerThanEqual => Z.le
-    
-    end.
 
 Definition WF (World : Set) (X : Set) := World-> X -> Prop.
  
@@ -215,8 +223,8 @@ Module Foas.
     | Foas.Forall x body =>
         forall arg, semant' (insert x arg store) body
     | Foas.Cmp cmp e1 e2 =>
-        match PL.interp_to_va_crash PL.value_logicVariable store e1,
-              PL.interp_to_va_crash PL.value_logicVariable store e2 with
+        match PL.interp_to_va_crash PL.valueLogicVariable store e1,
+              PL.interp_to_va_crash PL.valueLogicVariable store e2 with
         | Some v1, Some v2 => semant_Relop cmp v1 v2
         | _, _ => False
         end
@@ -307,15 +315,18 @@ Inductive prop (A : Set) : Set :=
 
   End WithA.
   
-  Fixpoint semant  (p : Phoas.prop (PL.Value)) : Prop :=
+  (* The semantics of a PHOAS proposition over any type of logic variables V:
+     a quantifier ranges over values, which are injected into V with [lit],
+     and comparisons use the [cmp] of the instance. *)
+  Fixpoint semant {V : Set} {VA : PL.LogicVariable V} (p : Phoas.prop V) : Prop :=
     match p with
     | Phoas.T _ => True
     | Phoas.F _ => False
     | Phoas.Implies l r => forall _: (semant l), (semant r)
     | Phoas.And l r => and (semant l) (semant r)
     | Phoas.Or l r => or (semant l) (semant r)
-    | Phoas.Forall f =>   forall x, (semant (f x))
-    | Phoas.Cmp r a b => (semant_Relop r) (a ) (b )
+    | Phoas.Forall f =>   forall v : PL.Value, (semant (f (PL.lit v)))
+    | Phoas.Cmp r a b => PL.cmp r a b
     end.
   
   
@@ -441,12 +452,15 @@ Qed.
   Definition bind (A B:Set) (m : R A) (k : A->R B) : R B :=
      fun r => k (m r) r.
   
-  Instance R_logicVariable : PL.LogicVariable (R PL.Exp) :=
+  (* readers are compared by running them in the empty scope and comparing
+     the resulting expressions *)
+  #[global] Instance R_logicVariable : PL.LogicVariable (R PL.Exp) :=
     {
     lit i:= ret (PL.Lit i);
-    add x y := bind x (fun v1 => 
+    add x y := bind x (fun v1 =>
               bind y (fun v2 =>
-              ret (PL.Add v1 v2)))
+              ret (PL.Add v1 v2)));
+    cmp r m1 m2 := PL.expLogicVariable.(PL.cmp) r (m1 ∅) (m2 ∅)
     }.
 
 
@@ -611,7 +625,7 @@ Qed.
     wf_add := wf_add_expR
   }.
 
-  Instance WF_VA_exp: WF_VA  PL.expression_logicVariable  wfe  := {
+  Instance WF_VA_exp: WF_VA  PL.expLogicVariable  wfe  := {
     wf_lit := wf_lit_exp;
     wf_add := wf_add_exp
   }.
@@ -1163,16 +1177,16 @@ Qed.
 
 
   Definition vc_hoas (c : Foas.Contract) : Hoas.prop :=
-  Hoas.phoas_to_hoas (vc (PL.value_logicVariable) ((Phoas.foas_contract_to_phoas_contract PL.value_logicVariable  ∅ c))).
+  Hoas.phoas_to_hoas (vc (PL.valueLogicVariable) ((Phoas.foas_contract_to_phoas_contract PL.valueLogicVariable  ∅ c))).
   
   Definition vc_foas (c : Foas.Contract) : Foas.prop :=
   Phoas.phoas_to_foas ∅ (vc Phoas.R_logicVariable (Phoas.foas_contract_to_phoas_contract Phoas.R_logicVariable  ∅ c)).
 
 
   Definition vc_just_hoas (c : Phoas.Contract PL.Value) : Hoas.prop :=
-  Hoas.phoas_to_hoas (vc (PL.value_logicVariable) c).
+  Hoas.phoas_to_hoas (vc (PL.valueLogicVariable) c).
   
-  Lemma vc_hoas_unfold: forall (c  : Foas.Contract ), vc_hoas c = vc_just_hoas (Phoas.foas_contract_to_phoas_contract PL.value_logicVariable  ∅ c).
+  Lemma vc_hoas_unfold: forall (c  : Foas.Contract ), vc_hoas c = vc_just_hoas (Phoas.foas_contract_to_phoas_contract PL.valueLogicVariable  ∅ c).
   Proof.
   intros. 
   reflexivity.
@@ -1240,7 +1254,7 @@ End well_formed_generation.
   (* If the generated weakest precondition holds, running the program will yield a result for wich the postcondition holds.  *)
   (* It might be better to prove this for wp with arbitrary input and map and applying here for a better induction hypothesis  *)
   Lemma wpPreconditionHoas : forall  (post : PL.Value->Hoas.prop) (stm : PL.Stm)  (inp : PL.Value) (arg : string) result fname,       
-  (Phoas.semant (vcg.wp PL.value_logicVariable stm (vcg.ignore_map (Hoas.hoas_to_phoas ∘  post)) {[arg := inp]})) 
+  (Phoas.semant (vcg.wp PL.valueLogicVariable stm (vcg.ignore_map (Hoas.hoas_to_phoas ∘  post)) {[arg := inp]})) 
   ->
   (PL.evalProg (PL.Fun fname arg stm ) inp result)-> Hoas.semant (post result ).
   Proof.
@@ -1299,7 +1313,7 @@ End well_formed_generation.
   apply (Hwp).
   - intros. apply H in H1.
     unfold "∘".
-    pose proof (Hoas.preserves_semantics (vcg.wp PL.value_logicVariable body
+    pose proof (Hoas.preserves_semantics (vcg.wp PL.valueLogicVariable body
               (vcg.ignore_map
                 (λ result : PL.Value,
                     Hoas.hoas_to_phoas (post inp result)))
@@ -1343,12 +1357,12 @@ Class Rel_VA (World : Set) (V1 V2:Set) (VA1 : PL.LogicVariable V1) ( VA2: PL.Log
     rel_lit : forall Γ n, Rel_V Γ (VA1.(PL.lit) n) (VA2.(PL.lit) n);
     rel_add : forall Γ v1 v2 v1' v2', Rel_V Γ v1 v2-> Rel_V Γ v1' v2' -> Rel_V Γ (VA1.(PL.add) v1 v1') (VA2.(PL.add) v2 v2');
 }.
-Definition rel_lit_int_exp : forall Γ n, int_exp Γ (PL.value_logicVariable.(PL.lit) n) (PL.expression_logicVariable.(PL.lit) n).
+Definition rel_lit_int_exp : forall Γ n, int_exp Γ (PL.valueLogicVariable.(PL.lit) n) (PL.expLogicVariable.(PL.lit) n).
 Proof.
 intros.
 constructor.
 Qed. 
-Definition rel_add_int_exp : forall Γ v1 v2 v1' v2', int_exp Γ v1 v2-> int_exp Γ v1' v2' -> int_exp Γ (PL.value_logicVariable.(PL.add) v1 v1') (PL.expression_logicVariable.(PL.add) v2 v2').
+Definition rel_add_int_exp : forall Γ v1 v2 v1' v2', int_exp Γ v1 v2-> int_exp Γ v1' v2' -> int_exp Γ (PL.valueLogicVariable.(PL.add) v1 v1') (PL.expLogicVariable.(PL.add) v2 v2').
 Proof.
 intros. 
 constructor; [apply H |apply H0].
@@ -1356,7 +1370,7 @@ Qed.
 
 
 
-Instance rel_va_int_exp : Rel_VA  (PL.value_logicVariable) (PL.expression_logicVariable) int_exp:=
+Instance rel_va_int_exp : Rel_VA  (PL.valueLogicVariable) (PL.expLogicVariable) int_exp:=
   {
   rel_lit := rel_lit_int_exp;
   rel_add := rel_add_int_exp
@@ -1406,19 +1420,19 @@ Instance rel_weaken_int_exp : Related_Weakening subseteq int_exp:=
 Definition int_r : Related (stringmap PL.Value) PL.Value (Phoas.R PL.Exp) :=
   fun Γ v m => forall Γ', Γ ⊆ Γ' -> int_exp Γ' v (m (dom Γ')).
 
-Definition rel_lit_int_r : forall Γ n, int_r Γ (PL.value_logicVariable.(PL.lit) n) (Phoas.R_logicVariable.(PL.lit) n).
+Definition rel_lit_int_r : forall Γ n, int_r Γ (PL.valueLogicVariable.(PL.lit) n) (Phoas.R_logicVariable.(PL.lit) n).
 Proof.
 intros Γ n Γ' Hsub.
 constructor.
 Qed.
 
-Definition rel_add_int_r : forall Γ v1 v2 v1' v2', int_r Γ v1 v2 -> int_r Γ v1' v2' -> int_r Γ (PL.value_logicVariable.(PL.add) v1 v1') (Phoas.R_logicVariable.(PL.add) v2 v2').
+Definition rel_add_int_r : forall Γ v1 v2 v1' v2', int_r Γ v1 v2 -> int_r Γ v1' v2' -> int_r Γ (PL.valueLogicVariable.(PL.add) v1 v1') (Phoas.R_logicVariable.(PL.add) v2 v2').
 Proof.
 intros Γ v1 v2 v1' v2' H1 H2 Γ' Hsub.
 constructor; [apply H1 | apply H2]; exact Hsub.
 Qed.
 
-Instance rel_va_int_r : Rel_VA (PL.value_logicVariable) (Phoas.R_logicVariable) int_r :=
+Instance rel_va_int_r : Rel_VA (PL.valueLogicVariable) (Phoas.R_logicVariable) int_r :=
   {
   rel_lit := rel_lit_int_r;
   rel_add := rel_add_int_r
@@ -1946,7 +1960,7 @@ Lemma rel_phoas_to_hoas_foas  (Γ : stringmap PL.Value) (p1 : Phoas.prop (PL.Val
 
 
   Lemma int_exp_interp_to_va_crash {Γ : stringmap PL.Value} {v : PL.Value} {e : PL.Exp} :
-  int_exp Γ v e -> PL.interp_to_va_crash PL.value_logicVariable Γ e = Some v.
+  int_exp Γ v e -> PL.interp_to_va_crash PL.valueLogicVariable Γ e = Some v.
   Proof.
     unfold int_exp.
     intro Hrel.
@@ -2026,7 +2040,7 @@ injection Heq as Hforallvar_eq Hpre_eq Hprog_eq Harg_eq HresultName_eq Hpost_eq.
 
 
 Lemma rel_interpret_exp (store : stringmap PL.Value) (e : PL.Exp) (wf_e : PL.wfexp (dom store) e) :
-  rel_value_exp store (PL.interp_to_va_default PL.value_logicVariable store e) e.
+  rel_value_exp store (PL.interp_to_va_default PL.valueLogicVariable store e) e.
   Proof.
   induction wf_e.
   - simpl. constructor.
@@ -2041,7 +2055,7 @@ Lemma rel_interpret_exp (store : stringmap PL.Value) (e : PL.Exp) (wf_e : PL.wfe
   
 Lemma rel_foas_to_hoas (store : stringmap PL.Value) (p : Foas.prop) :
   Foas.wfprop (dom store) p ->
-  rel_hoas_foas store (Hoas.phoas_to_hoas (Phoas.foas_to_phoas PL.value_logicVariable store p)) p . 
+  rel_hoas_foas store (Hoas.phoas_to_hoas (Phoas.foas_to_phoas PL.valueLogicVariable store p)) p . 
  
   Proof.
   revert store.
@@ -2057,7 +2071,7 @@ Lemma rel_foas_to_hoas (store : stringmap PL.Value) (p : Foas.prop) :
 
 
   Lemma rel_contract_foas_to_hoas (c : Foas.Contract) (wf_c : Foas.wfContract c) : 
-          rel_contract (Hoas.phoas_to_hoas_contract (Phoas.foas_contract_to_phoas_contract PL.value_logicVariable empty c)) c.
+          rel_contract (Hoas.phoas_to_hoas_contract (Phoas.foas_contract_to_phoas_contract PL.valueLogicVariable empty c)) c.
   Proof.
   destruct c.
   simpl.
@@ -2088,7 +2102,7 @@ Lemma rel_foas_to_hoas (store : stringmap PL.Value) (p : Foas.prop) :
   
 (* translating a Foas contract to a Hoas contract preserves its semantics *)
 Lemma contract_translation_preserves_semantics (c : Foas.Contract) (wf_c : Foas.wfContract c):
- Hoas.contract_semant (Hoas.phoas_to_hoas_contract (Phoas.foas_contract_to_phoas_contract PL.value_logicVariable empty c)) -> Foas.contract_semant c .
+ Hoas.contract_semant (Hoas.phoas_to_hoas_contract (Phoas.foas_contract_to_phoas_contract PL.valueLogicVariable empty c)) -> Foas.contract_semant c .
 Proof.
 intros Hoas_semant.
 
@@ -2113,7 +2127,7 @@ pose proof (adequate) as Hadequate.
 pose proof (contract_translation_preserves_semantics) as Hpreserve.
 apply (Hpreserve c);eauto.
 (*specialize (Hadequate (Phoas.foas_contract_to_phoas_contract
-PL.value_logicVariable ∅ c))  *)
+PL.valueLogicVariable ∅ c))  *)
 
 Qed.
 
