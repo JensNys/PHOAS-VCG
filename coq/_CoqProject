@@ -8,3 +8,4 @@ theories/vcGen.v
 theories/vcgWellFormed.v
 theories/hoasSoundness.v
 theories/vcgRelated.v
+theories/vcgSoundness.v
