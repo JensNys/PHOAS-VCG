@@ -8,10 +8,12 @@ Below is a table of conferences and their deadlines. When the next deadline is n
 |---|---|---|---|
 | ICFP | 2027 | Thu 25 Feb 2027 | |
 | ITP | 2026 | 19 Feb 2026 | Passed |
-| ITP | 2027 | | Not known yet |
+| ITP | 2027 | | 15 Feb 2026 |
 | CPP | 2027 | 3 Sep 2026 | Passed |
 | CPP | 2028 | | Not known yet |
 | ESOP | 2027 | 28 May 2026 | Passed |
 | ESOP | 2027 | 15 Oct 2026 | Too soon |
 | ESOP | 2028 | | Not known yet |
 | ECOOP | 2027 | 19 Nov 2026 and 11 Feb 2027 | |
+
+The ITP deadline is on February 15 but the abstract deadline is on February 2027.
