@@ -16,4 +16,4 @@ Below is a table of conferences and their deadlines. When the next deadline is n
 | ESOP | 2028 | | Not known yet |
 | ECOOP | 2027 | 19 Nov 2026 and 11 Feb 2027 | |
 
-The ITP deadline is on February 15 but the abstract deadline is on February 2027.
+The ITP deadline is on February 15 but the abstract deadline is on February 8 2027.
