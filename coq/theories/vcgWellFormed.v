@@ -102,6 +102,9 @@ Section Props.
     | WfForall {f : A -> Phoas.prop A} :
         (forall (a : A) w', acc w w' -> wf_A w' a -> WfProp w' (f a)) ->
         WfProp w (Phoas.Forall f)
+    | WfExists {f : A -> Phoas.prop A} :
+        (forall (a : A) w', acc w w' -> wf_A w' a -> WfProp w' (f a)) ->
+        WfProp w (Phoas.Exists f)
     | WfCmp {r : Relop} {a b : A} :
         wf_A w a -> wf_A w b -> WfProp w (Phoas.Cmp r a b).
 
@@ -118,9 +121,9 @@ End Props.
 (* ------------------------------------------------------------------ *)
 
 (* the operations of a logic variable preserve well-formedness *)
-Class WfLogicVariable {World V : Set} (LV : PL.LogicVariable V) (wf_V : WF World V) := {
-  wf_lit : forall w n, wf_V w (LV.(PL.lit) n);
-  wf_add : forall w a b, wf_V w a -> wf_V w b -> wf_V w (LV.(PL.add) a b)
+Class WfLogicVariable {World V : Set} (LV : Phoas.LogicVariable V) (wf_V : WF World V) := {
+  wf_lit : forall w n, wf_V w (LV.(Phoas.lit) n);
+  wf_add : forall w a b, wf_V w a -> wf_V w b -> wf_V w (LV.(Phoas.add) a b)
 }.
 
 (* every variable in the store is bound to a well-formed value *)
@@ -145,19 +148,19 @@ Definition WfReader : WF stringset (Phoas.R PL.Exp) :=
   fun Γ m => forall Γ', Γ ⊆ Γ' -> WfExp Γ' (m Γ').
 
 Lemma wf_lit_exp (Γ : stringset) (n : PL.Value) :
-  WfExp Γ (PL.expLogicVariable.(PL.lit) n).
+  WfExp Γ (Phoas.expLogicVariable.(Phoas.lit) n).
 Proof.
   constructor.
 Qed.
 
 Lemma wf_add_exp (Γ : stringset) (a b : PL.Exp) :
-  WfExp Γ a -> WfExp Γ b -> WfExp Γ (PL.expLogicVariable.(PL.add) a b).
+  WfExp Γ a -> WfExp Γ b -> WfExp Γ (Phoas.expLogicVariable.(Phoas.add) a b).
 Proof.
   intros Ha Hb.
   constructor; assumption.
 Qed.
 
-#[export] Instance wf_lv_exp : WfLogicVariable PL.expLogicVariable WfExp := {
+#[export] Instance wf_lv_exp : WfLogicVariable Phoas.expLogicVariable WfExp := {
   wf_lit := wf_lit_exp;
   wf_add := wf_add_exp
 }.
@@ -177,14 +180,14 @@ Qed.
 }.
 
 Lemma wf_lit_reader (Γ : stringset) (n : PL.Value) :
-  WfReader Γ (Phoas.R_logicVariable.(PL.lit) n).
+  WfReader Γ (Phoas.R_logicVariable.(Phoas.lit) n).
 Proof.
   intros Γ' Hsub.
   constructor.
 Qed.
 
 Lemma wf_add_reader (Γ : stringset) (a b : Phoas.R PL.Exp) :
-  WfReader Γ a -> WfReader Γ b -> WfReader Γ (Phoas.R_logicVariable.(PL.add) a b).
+  WfReader Γ a -> WfReader Γ b -> WfReader Γ (Phoas.R_logicVariable.(Phoas.add) a b).
 Proof.
   intros Ha Hb Γ' Hsub.
   constructor; [apply Ha | apply Hb]; exact Hsub.
@@ -218,12 +221,14 @@ Module Foas_wf.
   Inductive WfProp (Γ : stringset) : Foas.prop -> Prop :=
     | WfT : WfProp Γ Foas.T
     | WfF : WfProp Γ Foas.F
-    | WfCmp r a b : WfExp Γ a -> WfExp Γ b -> WfProp Γ (Foas.Cmp r a b)
     | WfImplies l r : WfProp Γ l -> WfProp Γ r -> WfProp Γ (Foas.Implies l r)
     | WfAnd l r : WfProp Γ l -> WfProp Γ r -> WfProp Γ (Foas.And l r)
     | WfOr l r : WfProp Γ l -> WfProp Γ r -> WfProp Γ (Foas.Or l r)
     | WfForall (x : string) (body : Foas.prop) :
-        WfProp (Γ ∪ {[x]}) body -> WfProp Γ (Foas.Forall x body).
+        WfProp (Γ ∪ {[x]}) body -> WfProp Γ (Foas.Forall x body)
+    | WfExists (x : string) (body : Foas.prop) :
+        WfProp (Γ ∪ {[x]}) body -> WfProp Γ (Foas.Exists x body)
+    | WfCmp r a b : WfExp Γ a -> WfExp Γ b -> WfProp Γ (Foas.Cmp r a b).
 
   Definition WfContract (c : Foas.Contract) : Prop :=
     match c with
@@ -244,7 +249,7 @@ End Foas_wf.
 
 Section Vcg.
   Variable (World : Set) (acc : relation World) (Hpreorder : PreOrder acc).
-  Variable (V : Set) (wf_V : WF World V) (LV : PL.LogicVariable V).
+  Variable (V : Set) (wf_V : WF World V) (LV : Phoas.LogicVariable V).
   Variable (HLV : WfLogicVariable LV wf_V) (Hweaken : WfWeakening acc wf_V).
 
   (* worlds only grow: [acc] is reflexive and transitive *)
@@ -301,7 +306,7 @@ Section Vcg.
 
   Lemma wf_interp_to_va_default (e : PL.Exp) (w : World) (store : stringmap V)
     (Hstore : WfStore wf_V w store) :
-    wf_V w (PL.interp_to_va_default LV store e).
+    wf_V w (Phoas.interp_to_va_default LV store e).
   Proof using HLV LV V World wf_V.
     induction e; simpl.
     - apply wf_lit.
@@ -312,7 +317,7 @@ Section Vcg.
 
   Lemma wf_interp_to_va_crash (e : PL.Exp) (w : World) (store : stringmap V)
     (Hstore : WfStore wf_V w store) :
-    WfOption wf_V w (PL.interp_to_va_crash LV store e).
+    WfOption wf_V w (Phoas.interp_to_va_crash LV store e).
   Proof using HLV LV V World wf_V.
     induction e; simpl.
     - constructor. apply wf_lit.
@@ -330,15 +335,22 @@ Section Vcg.
     induction p; intros w store Hstore; simpl.
     - constructor.
     - constructor.
-    - constructor; apply wf_interp_to_va_default; exact Hstore.
     - constructor; auto.
     - constructor; auto.
     - constructor; auto.
-    - constructor.
+    - (* Forall *)
+      constructor.
       intros v w1 Hacc1 Hv.
       apply IHp.
       apply wf_store_insert; [exact Hv |].
       eapply wf_store_weaken; eauto.
+    - (* Exists: same reasoning as Forall *)
+      constructor.
+      intros v w1 Hacc1 Hv.
+      apply IHp.
+      apply wf_store_insert; [exact Hv |].
+      eapply wf_store_weaken; eauto.
+    - constructor; apply wf_interp_to_va_default; exact Hstore.
   Qed.
 
   (* the store monad *)
@@ -522,7 +534,12 @@ Proof.
   - constructor; auto.
   - constructor; auto.
   - constructor; auto.
-  - (* the fresh variable is in scope in the body *)
+  - (* Forall: the fresh variable is in scope in the body *)
+    constructor.
+    apply H0.
+    + set_solver.
+    + intros Γ' Hsub. constructor. set_solver.
+  - (* Exists: same reasoning as Forall *)
     constructor.
     apply H0.
     + set_solver.

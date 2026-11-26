@@ -30,6 +30,7 @@ Inductive prop : Set :=
   | And (l : prop ) (r : prop)
   | Or (l : prop ) (r : prop)
   | Forall (f : PL.Value ->  prop)
+  | Exists (f : PL.Value ->  prop)
   | Cmp (r:Relop) (a : PL.Value) (b:PL.Value).
 
   Fixpoint phoas_to_hoas (phoasProp : Phoas.prop PL.Value ) : prop :=
@@ -40,17 +41,19 @@ Inductive prop : Set :=
       | Phoas.And l r => And (phoas_to_hoas l) (phoas_to_hoas r)
       | Phoas.Or l r => Or (phoas_to_hoas l) (phoas_to_hoas r)
       | Phoas.Forall f => Forall (phoas_to_hoas ∘ f)
+      | Phoas.Exists f => Exists (phoas_to_hoas ∘ f)
       | Phoas.Cmp c l r => Cmp c l r 
       end.
   Fixpoint hoas_to_phoas (phoasProp : prop) : Phoas.prop PL.Value  :=
     match phoasProp with
-      | Forall f => Phoas.Forall (hoas_to_phoas ∘ f)
-      | Cmp c l r => Phoas.Cmp c l r 
       | T => Phoas.T _
       | F => Phoas.F _
       | Implies l r => Phoas.Implies (hoas_to_phoas l) (hoas_to_phoas r)
       | And l r => Phoas.And (hoas_to_phoas l) (hoas_to_phoas r)
       | Or l r => Phoas.Or (hoas_to_phoas l) (hoas_to_phoas r)
+      | Forall f => Phoas.Forall (hoas_to_phoas ∘ f)
+      | Exists f => Phoas.Exists (hoas_to_phoas ∘ f)
+      | Cmp c l r => Phoas.Cmp c l r
       
       end.
   
@@ -63,9 +66,9 @@ Inductive prop : Set :=
     match c with
     | Foas.MkContract forallVar pre prog arg result post =>
         ForallC (fun v =>
-          HoareTriple (phoas_to_hoas (Phoas.foas_to_phoas PL.valueLogicVariable {[ forallVar := v ]} pre))
+          HoareTriple (phoas_to_hoas (Phoas.foas_to_phoas Phoas.valueLogicVariable {[ forallVar := v ]} pre))
             prog v
-            (fun r => phoas_to_hoas (Phoas.foas_to_phoas PL.valueLogicVariable ({[ forallVar := v ]} ∪ {[ result := r ]}) post)))
+            (fun r => phoas_to_hoas (Phoas.foas_to_phoas Phoas.valueLogicVariable ({[ forallVar := v ]} ∪ {[ result := r ]}) post)))
     end.
 
 
@@ -80,6 +83,7 @@ Inductive prop : Set :=
   - simpl; f_equal;try(apply IHp1);try(apply IHp2).
   - simpl; f_equal;try(apply IHp1);try(apply IHp2).
   - simpl. f_equal. unfold "∘".  extensionality v. apply H.
+  - simpl. f_equal. unfold "∘".  extensionality v. apply H.
   - simpl. reflexivity.
   Qed.
   Lemma inverse_formula2 (p: prop) : phoas_to_hoas (hoas_to_phoas p) = p.
@@ -90,6 +94,7 @@ Inductive prop : Set :=
   - simpl; f_equal;try(apply IHp1);try(apply IHp2).
   - simpl; f_equal;try(apply IHp1);try(apply IHp2).
   - simpl; f_equal;try(apply IHp1);try(apply IHp2).
+  - simpl. f_equal. unfold "∘".  extensionality v. apply H.
   - simpl. f_equal. unfold "∘".  extensionality v. apply H.
   - simpl. reflexivity.
   Qed.
@@ -104,6 +109,7 @@ Inductive prop : Set :=
     | And l r => and (semant l) (semant r)
     | Or l r => or (semant l) (semant r)
     | Forall f =>   forall x, (semant (f x))
+    | Exists f =>   exists x, (semant (f x))
     | Cmp r a b => (semant_Relop r) (a ) (b )
     end.
   
@@ -124,7 +130,9 @@ Inductive prop : Set :=
   - simpl; try(rewrite IHp1; rewrite IHp2); reflexivity.
   - simpl; try(rewrite IHp1; rewrite IHp2); reflexivity.
   - simpl. split. + intros. eapply H. eapply H0.
-                  + intros. eapply H. eapply H0. 
+                  + intros. eapply H. eapply H0.
+  - simpl. split. + intros [v Hv]. exists v. eapply H. eapply Hv.
+                  + intros [v Hv]. exists v. eapply H. eapply Hv.
   - simpl. reflexivity.
   Qed.  
 

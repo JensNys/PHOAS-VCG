@@ -37,8 +37,7 @@ Definition semant_Relop (r:Relop) : Z->Z->Prop :=
     end.
 
 
-(* Defines the syntax and semantics for the object language. The semantics is given both by a big step semantics relation and an interpreter.
-Logic Variables are also introduced, which are a way of making expressions with more arbitrary types*)
+(* Defines the syntax and semantics for the object language. The semantics is given both by a big step semantics relation and an interpreter.*)
 Module PL.
 Definition Value := Z.
 (*Definition eval_store := listmap.string_map value.*)
@@ -52,39 +51,45 @@ Inductive Stm : Set :=
 Inductive Prog : Set :=
   | Fun (functionName : string) (param : string) (body : Stm).
   
-  Class LogicVariable (V: Set) :=
-  {
-  lit : PL.Value -> V;
-  add : V -> V -> V;
-  cmp : Relop -> V -> V -> Prop
-  }.
-  
-  #[global] Instance valueLogicVariable : LogicVariable (PL.Value) :=
-  {
-  lit := id;
-  add := Z.add;
-  cmp := semant_Relop
-  }.
-  
-  
 (* I use big step semantics because it is closer to the interpreter i already have. 
 The disadvantage of big step semantics is that it doesn't give a semantics to non-terminating programs. 
 Since a contract and it postcondition makes a statement about terminating programs (If a program terminates with result r, {P} program {r.Q} holds). angelic/demonic choice determines whether a contract holds for non-terminating programs by either making the weakest precondition true or false.
 therefore in our case i don't think we have a need for a small-step semantics. *)
 
-(* big step semantics for expressions*)
-Inductive evalExp (store : stringmap Value) :  Exp -> Value ->Prop :=
-  | EvalLit : forall n , evalExp store (Lit n) n  
-  | EvalVar : forall x  v,  lookup x store = Some v -> evalExp store (Var x)  v
-  | EvalAdd : forall a b v1 v2, evalExp store a v1 -> evalExp store b  v2 -> evalExp store (Add a b)  (Z.add v1 v2).
-  
-(*big step semantics for statements*)
-Inductive evalStm (store : stringmap Value) :  Stm  -> (Value * stringmap Value)->Prop :=
-  | EvalExpr : forall mv e, evalExp store e  mv -> evalStm store (Expr e)  (mv,store)
-  | EvalLetSucces  : forall x e body store' result v, evalExp store e (v) -> evalStm (insert x v store)  body (result,store')-> evalStm store (Let x e body)  (result, delete x store') .
-  
-Inductive evalProg : Prog->Value-> Value->Prop :=
-  | EvalFunc: forall (functionName : string) (param : string) (body : Stm) input result o,  evalStm ({[ param := input ]}) body (result,o) -> evalProg (Fun functionName param body) input result.
+(* Z_scope only around evalExp: in evalStm, [*] must stay the product type *)
+Local Open Scope Z_scope.
+
+(* big step semantics for expressions *)
+Inductive evalExp (store : stringmap Value) :
+    Exp -> Value -> Prop :=
+  | EvalLit n :
+      evalExp store (Lit n) n
+  | EvalVar x v :
+      lookup x store = Some v ->
+      evalExp store (Var x) v
+  | EvalAdd a b v1 v2 :
+      evalExp store a v1 ->
+      evalExp store b v2 ->
+      evalExp store (Add a b) (v1 + v2).
+
+Local Close Scope Z_scope.
+
+(* big step semantics for statements *)
+Inductive evalStm (store : stringmap Value) :
+    Stm -> Value * stringmap Value -> Prop :=
+  | EvalExpr e v :
+      evalExp store e v ->
+      evalStm store (Expr e) (v, store)
+  | EvalLet x e body v result store' :
+      evalExp store e v ->
+      evalStm (<[x := v]> store) body (result, store') ->
+      evalStm store (Let x e body) (result, delete x store').
+
+(* big step semantics for programs *)
+Inductive evalProg : Prog -> Value -> Value -> Prop :=
+  | EvalFunc f param body input result store' :
+      evalStm {[param := input]} body (result, store') ->
+      evalProg (Fun f param body) input result.
 
 Inductive wfexp (Γ : stringset) : Exp -> Prop :=
 | WfLit n :
@@ -128,52 +133,16 @@ intros x H.
 
 
 
-  Fixpoint interp_to_va_default (V : Set) (VA: LogicVariable V) (store:stringmap V) (e : Exp)  : V :=
+  (* interpreter for expressions over values; crashes (None) on unbound variables *)
+  Fixpoint interp_exp (store : stringmap Value) (e : Exp) : option Value :=
     match e with
-      |Lit n => lit n
-      
-      |Var x => match (lookup x store) with
-                                          | None => lit 0%Z
-                                          | Some v => v
-                                       end
-
-      | Add l r=> add (interp_to_va_default VA store l) (interp_to_va_default VA store r)
-    end.
-    
-    Fixpoint interp_to_va_crash (V : Set) (VA: LogicVariable V) (store:stringmap V) (e : Exp) : option V :=
-    match e with
-    | Lit n => Some (lit n)
-    | Var x => lookup x store
+    | Lit n => Some n
+    | Var x => store !! x
     | Add l r =>
-        match interp_to_va_crash VA store l with
-        | None => None
-        | Some lv =>
-            match interp_to_va_crash VA store r with
-            | None => None
-            | Some rv => Some (add lv rv)
-            end
+        match interp_exp store l, interp_exp store r with
+        | Some lv, Some rv => Some (Z.add lv rv)
+        | _, _ => None
         end
     end.
-
-  (* expressions are compared by evaluating them as closed expressions,
-     like comparisons in [Foas.semant'] *)
-  #[global] Instance expLogicVariable : LogicVariable PL.Exp :=
-  {
-  lit := PL.Lit;
-  add := PL.Add;
-  cmp r e1 e2 := match interp_to_va_crash valueLogicVariable ∅ e1,
-                       interp_to_va_crash valueLogicVariable ∅ e2 with
-                 | Some v1, Some v2 => semant_Relop r v1 v2
-                 | _, _ => False
-                 end
-  }.
-
-    
-  
-  
-                                           
-    
-    
-      
 
 End PL.

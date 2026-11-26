@@ -34,7 +34,7 @@ From Phoas Require Import programmingLanguage foas phoas hoas vcGen.
   (* If the generated weakest precondition holds, running the program will yield a result for wich the postcondition holds.  *)
   (* It might be better to prove this for wp with arbitrary input and map and applying here for a better induction hypothesis  *)
   Lemma wpPreconditionHoas : forall  (post : PL.Value->Hoas.prop) (stm : PL.Stm)  (inp : PL.Value) (arg : string) result fname,       
-  (Phoas.semant (vcg.wp PL.valueLogicVariable stm (vcg.ignore_map (Hoas.hoas_to_phoas ∘  post)) {[arg := inp]})) 
+  (Phoas.semant (vcg.wp Phoas.valueLogicVariable stm (vcg.ignore_map (Hoas.hoas_to_phoas ∘  post)) {[arg := inp]})) 
   ->
   (PL.evalProg (PL.Fun fname arg stm ) inp result)-> Hoas.semant (post result ).
   Proof.

@@ -25,13 +25,15 @@ Module Foas.
  Inductive prop : Set :=
   | T
   | F
-  | Cmp (r:Relop) (a b : PL.Exp)
   | Implies (l : prop) (r : prop)
   | And (l : prop) (r : prop)
   | Or (l : prop) (r : prop)
-  | Forall (x : string) (p :  prop).
+  | Forall (x : string) (p :  prop)
+  | Exists (x : string) (p :  prop)
+  | Cmp (r:Relop) (a b : PL.Exp).
 
-
+  Definition example : Foas.prop :=
+  Forall "x" (Cmp SmallerThan (PL.Var "x") (PL.Add (PL.Var "x") (PL.Lit 0))).
   
     
   Fixpoint semant' (store : stringmap PL.Value) (foasprop : Foas.prop) : Prop :=
@@ -43,9 +45,11 @@ Module Foas.
     | Foas.Or p1 p2 => semant' store p1 \/ semant' store p2
     | Foas.Forall x body =>
         forall arg, semant' (insert x arg store) body
+    | Foas.Exists x body =>
+        exists arg, semant' (insert x arg store) body
     | Foas.Cmp cmp e1 e2 =>
-        match PL.interp_to_va_crash PL.valueLogicVariable store e1,
-              PL.interp_to_va_crash PL.valueLogicVariable store e2 with
+        match PL.interp_exp store e1,
+              PL.interp_exp store e2 with
         | Some v1, Some v2 => semant_Relop cmp v1 v2
         | _, _ => False
         end

@@ -105,6 +105,9 @@ Section Props.
     | RelForall {f1 : A1 -> Phoas.prop A1} {f2 : A2 -> Phoas.prop A2} :
         (forall (a1 : A1) (a2 : A2) w', acc w w' -> rel_A w' a1 a2 -> RelProp w' (f1 a1) (f2 a2)) ->
         RelProp w (Phoas.Forall f1) (Phoas.Forall f2)
+    | RelExists {f1 : A1 -> Phoas.prop A1} {f2 : A2 -> Phoas.prop A2} :
+        (forall (a1 : A1) (a2 : A2) w', acc w w' -> rel_A w' a1 a2 -> RelProp w' (f1 a1) (f2 a2)) ->
+        RelProp w (Phoas.Exists f1) (Phoas.Exists f2)
     | RelCmp {r : Relop} {a1 b1 : A1} {a2 b2 : A2} :
         rel_A w a1 a2 -> rel_A w b1 b2 -> RelProp w (Phoas.Cmp r a1 b1) (Phoas.Cmp r a2 b2).
 
@@ -121,11 +124,11 @@ End Props.
 (* ------------------------------------------------------------------ *)
 
 (* the operations of logic variables preserve relatedness *)
-Class RelLogicVariable {World V1 V2 : Set} (LV1 : PL.LogicVariable V1) (LV2 : PL.LogicVariable V2)
+Class RelLogicVariable {World V1 V2 : Set} (LV1 : Phoas.LogicVariable V1) (LV2 : Phoas.LogicVariable V2)
   (rel_V : Related World V1 V2) := {
-  rel_lit : forall w n, rel_V w (LV1.(PL.lit) n) (LV2.(PL.lit) n);
+  rel_lit : forall w n, rel_V w (LV1.(Phoas.lit) n) (LV2.(Phoas.lit) n);
   rel_add : forall w a1 a2 b1 b2, rel_V w a1 a2 -> rel_V w b1 b2 ->
-            rel_V w (LV1.(PL.add) a1 b1) (LV2.(PL.add) a2 b2)
+            rel_V w (LV1.(Phoas.add) a1 b1) (LV2.(Phoas.add) a2 b2)
 }.
 
 (* every variable is bound in both stores or in neither, to related values *)
@@ -155,20 +158,20 @@ Definition RelReader : Related (stringmap PL.Value) PL.Value (Phoas.R PL.Exp) :=
   fun Γ v m => forall Γ', Γ ⊆ Γ' -> RelExp Γ' v (m (dom Γ')).
 
 Lemma rel_lit_exp (Γ : stringmap PL.Value) (n : PL.Value) :
-  RelExp Γ (PL.valueLogicVariable.(PL.lit) n) (PL.expLogicVariable.(PL.lit) n).
+  RelExp Γ (Phoas.valueLogicVariable.(Phoas.lit) n) (Phoas.expLogicVariable.(Phoas.lit) n).
 Proof.
   constructor.
 Qed.
 
 Lemma rel_add_exp (Γ : stringmap PL.Value) (a1 : PL.Value) (a2 : PL.Exp) (b1 : PL.Value) (b2 : PL.Exp) :
   RelExp Γ a1 a2 -> RelExp Γ b1 b2 ->
-  RelExp Γ (PL.valueLogicVariable.(PL.add) a1 b1) (PL.expLogicVariable.(PL.add) a2 b2).
+  RelExp Γ (Phoas.valueLogicVariable.(Phoas.add) a1 b1) (Phoas.expLogicVariable.(Phoas.add) a2 b2).
 Proof.
   intros Ha Hb.
   constructor; assumption.
 Qed.
 
-#[export] Instance rel_lv_exp : RelLogicVariable PL.valueLogicVariable PL.expLogicVariable RelExp := {
+#[export] Instance rel_lv_exp : RelLogicVariable Phoas.valueLogicVariable Phoas.expLogicVariable RelExp := {
   rel_lit := rel_lit_exp;
   rel_add := rel_add_exp
 }.
@@ -189,7 +192,7 @@ Qed.
 }.
 
 Lemma rel_lit_reader (Γ : stringmap PL.Value) (n : PL.Value) :
-  RelReader Γ (PL.valueLogicVariable.(PL.lit) n) (Phoas.R_logicVariable.(PL.lit) n).
+  RelReader Γ (Phoas.valueLogicVariable.(Phoas.lit) n) (Phoas.R_logicVariable.(Phoas.lit) n).
 Proof.
   intros Γ' Hsub.
   constructor.
@@ -197,13 +200,13 @@ Qed.
 
 Lemma rel_add_reader (Γ : stringmap PL.Value) (a1 : PL.Value) (a2 : Phoas.R PL.Exp) (b1 : PL.Value) (b2 : Phoas.R PL.Exp) :
   RelReader Γ a1 a2 -> RelReader Γ b1 b2 ->
-  RelReader Γ (PL.valueLogicVariable.(PL.add) a1 b1) (Phoas.R_logicVariable.(PL.add) a2 b2).
+  RelReader Γ (Phoas.valueLogicVariable.(Phoas.add) a1 b1) (Phoas.R_logicVariable.(Phoas.add) a2 b2).
 Proof.
   intros Ha Hb Γ' Hsub.
   constructor; [apply Ha | apply Hb]; exact Hsub.
 Qed.
 
-#[export] Instance rel_lv_reader : RelLogicVariable PL.valueLogicVariable Phoas.R_logicVariable RelReader := {
+#[export] Instance rel_lv_reader : RelLogicVariable Phoas.valueLogicVariable Phoas.R_logicVariable RelReader := {
   rel_lit := rel_lit_reader;
   rel_add := rel_add_reader
 }.
@@ -242,6 +245,9 @@ Inductive RelHoasFoas : Related (stringmap PL.Value) Hoas.prop Foas.prop :=
   | RhfForall Γ (f : PL.Value -> Hoas.prop) (x : string) (body : Foas.prop) :
       (forall v, RelHoasFoas (<[x := v]> Γ) (f v) body) ->
       RelHoasFoas Γ (Hoas.Forall f) (Foas.Forall x body)
+  | RhfExists Γ (f : PL.Value -> Hoas.prop) (x : string) (body : Foas.prop) :
+      (forall v, RelHoasFoas (<[x := v]> Γ) (f v) body) ->
+      RelHoasFoas Γ (Hoas.Exists f) (Foas.Exists x body)
   | RhfCmp Γ r (a1 : PL.Value) (a2 : PL.Exp) (b1 : PL.Value) (b2 : PL.Exp) :
       RelExp Γ a1 a2 -> RelExp Γ b1 b2 ->
       RelHoasFoas Γ (Hoas.Cmp r a1 b1) (Foas.Cmp r a2 b2).
@@ -255,7 +261,7 @@ Inductive RelHoasFoas : Related (stringmap PL.Value) Hoas.prop Foas.prop :=
 Section Vcg.
   Variable (World : Set) (acc : relation World) (Hpreorder : PreOrder acc).
   Variable (V1 V2 : Set) (rel_V : Related World V1 V2)
-           (LV1 : PL.LogicVariable V1) (LV2 : PL.LogicVariable V2).
+           (LV1 : Phoas.LogicVariable V1) (LV2 : Phoas.LogicVariable V2).
   Variable (HLV : RelLogicVariable LV1 LV2 rel_V) (Hweaken : RelWeakening acc rel_V).
 
   (* worlds only grow: [acc] is reflexive and transitive *)
@@ -316,7 +322,7 @@ Section Vcg.
   Lemma rel_interp_to_va_default (e : PL.Exp) (w : World)
     (store1 : stringmap V1) (store2 : stringmap V2)
     (Hstore : RelStore rel_V w store1 store2) :
-    rel_V w (PL.interp_to_va_default LV1 store1 e) (PL.interp_to_va_default LV2 store2 e).
+    rel_V w (Phoas.interp_to_va_default LV1 store1 e) (Phoas.interp_to_va_default LV2 store2 e).
   Proof using HLV LV1 LV2 V1 V2 World rel_V.
     induction e; simpl.
     - apply rel_lit.
@@ -328,7 +334,7 @@ Section Vcg.
   Lemma rel_interp_to_va_crash (e : PL.Exp) (w : World)
     (store1 : stringmap V1) (store2 : stringmap V2)
     (Hstore : RelStore rel_V w store1 store2) :
-    RelOption rel_V w (PL.interp_to_va_crash LV1 store1 e) (PL.interp_to_va_crash LV2 store2 e).
+    RelOption rel_V w (Phoas.interp_to_va_crash LV1 store1 e) (Phoas.interp_to_va_crash LV2 store2 e).
   Proof using HLV LV1 LV2 V1 V2 World rel_V.
     induction e; simpl.
     - constructor. apply rel_lit.
@@ -347,15 +353,22 @@ Section Vcg.
     induction p; intros w store1 store2 Hstore; simpl.
     - constructor.
     - constructor.
-    - constructor; apply rel_interp_to_va_default; exact Hstore.
     - constructor; auto.
     - constructor; auto.
     - constructor; auto.
-    - constructor.
+    - (* Forall *)
+      constructor.
       intros v1 v2 w1 Hacc1 Hv.
       apply IHp.
       apply rel_store_insert; [exact Hv |].
       eapply rel_store_weaken; eauto.
+    - (* Exists: same reasoning as Forall *)
+      constructor.
+      intros v1 v2 w1 Hacc1 Hv.
+      apply IHp.
+      apply rel_store_insert; [exact Hv |].
+      eapply rel_store_weaken; eauto.
+    - constructor; apply rel_interp_to_va_default; exact Hstore.
   Qed.
 
   (* the store monad *)
@@ -548,6 +561,23 @@ Proof.
   - constructor; auto.
   - constructor; auto.
   - (* Forall: FOAS binds a fresh name x, HOAS gets an arbitrary value v *)
+    constructor.
+    intro v.
+    set (x := fresh_string_of_set "x" (dom w)).
+    unfold "∘".
+    assert (Hdom : dom w ∪ {[x]} = dom (<[x:=v]> w)).
+    { rewrite dom_insert_L. set_solver. }
+    rewrite Hdom.
+    apply H0.
+    + (* the extended store is an extension, because x is fresh *)
+      apply insert_subseteq.
+      apply not_elem_of_dom.
+      apply fresh_string_of_set_fresh.
+    + (* v is related to the reader that always returns Var x *)
+      intros Γ' Hsub.
+      constructor.
+      eapply lookup_weaken; [apply lookup_insert_eq | exact Hsub].
+  - (* Exists: same reasoning as Forall *)
     constructor.
     intro v.
     set (x := fresh_string_of_set "x" (dom w)).

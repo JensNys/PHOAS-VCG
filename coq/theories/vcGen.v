@@ -50,18 +50,18 @@ Definition Wstore (V A:Set) := (A -> stringmap V -> Phoas.prop V) -> stringmap V
   | Some v => insertWstore varname v
   end.
 
-  Fixpoint exec_exp (V:Set) (VA : PL.LogicVariable V) (e : PL.Exp) : (Wstore V V):= 
+  Fixpoint exec_exp (V:Set) (VA : Phoas.LogicVariable V) (e : PL.Exp) : (Wstore V V):= 
   match e with
-  | PL.Lit n => ret (VA.(PL.lit) n)
+  | PL.Lit n => ret (VA.(Phoas.lit) n)
   | PL.Var x => lookupWstore x
   | PL.Add e1 e2 => bind (exec_exp VA e1)  (fun x =>
                     bind (exec_exp VA e2)  (fun y =>
-                    ret (VA.(PL.add) x y)
+                    ret (VA.(Phoas.add) x y)
   
   ))
   end.
 
-  Fixpoint exec_stm (V:Set) (VA : PL.LogicVariable V) (stm : PL.Stm) : (Wstore V V):= 
+  Fixpoint exec_stm (V:Set) (VA : Phoas.LogicVariable V) (stm : PL.Stm) : (Wstore V V):= 
   match stm with
   | PL.Expr e => exec_exp VA e
   | PL.Let var e body => bind (exec_exp VA e)                    (fun  x =>
@@ -74,14 +74,14 @@ Definition Wstore (V A:Set) := (A -> stringmap V -> Phoas.prop V) -> stringmap V
                          )))))
   end.
 
-  Definition wp (V:Set) (VA : PL.LogicVariable V) (stm : PL.Stm) (post : V -> stringmap V -> Phoas.prop V)  (initStore : stringmap V) : Phoas.prop V :=
+  Definition wp (V:Set) (VA : Phoas.LogicVariable V) (stm : PL.Stm) (post : V -> stringmap V -> Phoas.prop V)  (initStore : stringmap V) : Phoas.prop V :=
   (exec_stm VA stm) post initStore.
 
   Definition ignore_map (V:Set) (post : V->Phoas.prop V) : V->stringmap V->Phoas.prop V :=
   fun result _ => post result.
   
   (* the verification condition of a FOAS contract, as a PHOAS proposition over any type of logic variables *)
-  Definition vc (V:Set) (VA : PL.LogicVariable V) (contract : Foas.Contract) : Phoas.prop V :=
+  Definition vc (V:Set) (VA : Phoas.LogicVariable V) (contract : Foas.Contract) : Phoas.prop V :=
   match contract with
   | Foas.MkContract forallVar pre prog arg result post =>
       Phoas.Forall (fun v =>
@@ -95,7 +95,7 @@ Definition Wstore (V A:Set) := (A -> stringmap V -> Phoas.prop V) -> stringmap V
   end.
 
   Definition vc_hoas (c : Foas.Contract) : Hoas.prop :=
-  Hoas.phoas_to_hoas (vc PL.valueLogicVariable c).
+  Hoas.phoas_to_hoas (vc Phoas.valueLogicVariable c).
 
   Definition vc_foas (c : Foas.Contract) : Foas.prop :=
   Phoas.phoas_to_foas ∅ (vc Phoas.R_logicVariable c).
@@ -108,7 +108,7 @@ Definition Wstore (V A:Set) := (A -> stringmap V -> Phoas.prop V) -> stringmap V
       match prog with
       | PL.Fun functionName param body =>
           Hoas.Implies pre
-            (Hoas.phoas_to_hoas (wp PL.valueLogicVariable body (ignore_map (Hoas.hoas_to_phoas ∘ post)) {[ param := arg ]}))
+            (Hoas.phoas_to_hoas (wp Phoas.valueLogicVariable body (ignore_map (Hoas.hoas_to_phoas ∘ post)) {[ param := arg ]}))
       end
   end.
 

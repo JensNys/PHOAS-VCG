@@ -30,7 +30,7 @@ From Phoas Require Import programmingLanguage foas phoas hoas vcGen vcgWellForme
 (* ------------------------------------------------------------------ *)
 
 Lemma rel_exp_interp_to_va_crash (Γ : stringmap PL.Value) (v : PL.Value) (e : PL.Exp) :
-  RelExp Γ v e -> PL.interp_to_va_crash PL.valueLogicVariable Γ e = Some v.
+  RelExp Γ v e -> PL.interp_exp Γ e = Some v.
 Proof.
   intro He.
   induction He; simpl; eauto.
@@ -49,6 +49,7 @@ Proof.
   - (* And *) rewrite IHHrel1, IHHrel2. reflexivity.
   - (* Or *) rewrite IHHrel1, IHHrel2. reflexivity.
   - (* Forall *) split; intros Hall v; apply H0, Hall.
+  - (* Exists: same reasoning as Forall *) split; intros [v Hv]; exists v; apply H0, Hv.
   - (* Cmp *) rewrite (rel_exp_interp_to_va_crash H), (rel_exp_interp_to_va_crash H0). reflexivity.
 Qed.
 
@@ -96,7 +97,7 @@ Qed.
 
 Lemma rel_exp_interp_to_va_default (store : stringmap PL.Value) (e : PL.Exp)
   (He : WfExp (dom store) e) :
-  RelExp store (PL.interp_to_va_default PL.valueLogicVariable store e) e.
+  RelExp store (Phoas.interp_to_va_default Phoas.valueLogicVariable store e) e.
 Proof.
   induction He; simpl.
   - constructor.
@@ -109,22 +110,28 @@ Qed.
 
 Lemma rel_foas_to_hoas (store : stringmap PL.Value) (p : Foas.prop) :
   Foas_wf.WfProp (dom store) p ->
-  RelHoasFoas store (Hoas.phoas_to_hoas (Phoas.foas_to_phoas PL.valueLogicVariable store p)) p.
+  RelHoasFoas store (Hoas.phoas_to_hoas (Phoas.foas_to_phoas Phoas.valueLogicVariable store p)) p.
 Proof.
   revert store.
   induction p; intros store Hp; simpl; constructor; inversion Hp; subst.
-  - apply rel_exp_interp_to_va_default; assumption.
-  - apply rel_exp_interp_to_va_default; assumption.
   - apply IHp1; assumption.
   - apply IHp2; assumption.
   - apply IHp1; assumption.
   - apply IHp2; assumption.
   - apply IHp1; assumption.
   - apply IHp2; assumption.
-  - intros v.
+  - (* Forall *)
+    intros v.
     apply IHp.
     rewrite dom_insert_L, union_comm_L.
     assumption.
+  - (* Exists: same reasoning as Forall *)
+    intros v.
+    apply IHp.
+    rewrite dom_insert_L, union_comm_L.
+    assumption.
+  - apply rel_exp_interp_to_va_default; assumption.
+  - apply rel_exp_interp_to_va_default; assumption.
 Qed.
 
 Lemma rel_contract_foas_to_hoas (c : Foas.Contract) (Hc : Foas_wf.WfContract c) :

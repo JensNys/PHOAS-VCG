@@ -26,6 +26,9 @@ From Phoas Require Import programmingLanguage foas.
 (* introduces phoas propositions, their semantics and how to translate them from and to foas.*)
 Module Phoas.
 
+  
+
+
 
 Inductive prop (A : Set) : Set :=
   | T
@@ -34,27 +37,93 @@ Inductive prop (A : Set) : Set :=
   | And (l : prop A) (r : prop A)
   | Or (l : prop A) (r : prop A)
   | Forall (f : A ->  prop A)
+  | Exists (f : A ->  prop A)
   | Cmp (r:Relop) (a : A) (b:A).
-  
+
+
+  (* the operations of the language that the VC generator needs on logic variables *)
+  Class LogicVariable (V: Set) :=
+  {
+  lit : PL.Value -> V;
+  add : V -> V -> V
+  }.
+
+  (* comparison of logic variables; only needed to give a semantics to PHOAS propositions *)
+  Class LogicComparison (V: Set) :=
+  {
+  cmp : Relop -> V -> V -> Prop
+  }.
+
+  #[global] Instance valueLogicVariable : LogicVariable (PL.Value) :=
+  {
+  lit := id;
+  add := Z.add
+  }.
+
+  #[global] Instance valueLogicComparison : LogicComparison (PL.Value) :=
+  {
+  cmp := semant_Relop
+  }.
+
+  Fixpoint interp_to_va_default (V : Set) (VA: LogicVariable V) (store:stringmap V) (e : PL.Exp)  : V :=
+    match e with
+      |PL.Lit n => lit n
+      
+      |PL.Var x => match (lookup x store) with
+                                          | None => lit 0%Z
+                                          | Some v => v
+                                       end
+
+      | PL.Add l r=> add (interp_to_va_default VA store l) (interp_to_va_default VA store r)
+    end.
+    
+    Fixpoint interp_to_va_crash (V : Set) (VA: LogicVariable V) (store:stringmap V) (e : PL.Exp) : option V :=
+    match e with
+    | PL.Lit n => Some (lit n)
+    | PL.Var x => lookup x store
+    | PL.Add l r =>
+        match interp_to_va_crash VA store l with
+        | None => None
+        | Some lv =>
+            match interp_to_va_crash VA store r with
+            | None => None
+            | Some rv => Some (add lv rv)
+            end
+        end
+    end.
+
+  #[global] Instance expLogicVariable : LogicVariable PL.Exp :=
+  {
+  lit := PL.Lit;
+  add := PL.Add
+  }.
+
+
+
+
+  Definition phoas_example {V : Set} `{Phoas.LogicVariable V} : Phoas.prop V :=
+  Forall (fun x => Cmp SmallerThanEqual x (add x (lit 1%Z))).
   
   (* The semantics of a PHOAS proposition over any type of logic variables V:
      a quantifier ranges over values, which are injected into V with [lit],
-     and comparisons use the [cmp] of the instance. *)
-  Fixpoint semant {V : Set} {VA : PL.LogicVariable V} (p : Phoas.prop V) : Prop :=
+     and comparisons use [cmp] of the [LogicComparison] instance. *)
+  Fixpoint semant {V : Set} {VA : Phoas.LogicVariable V} {VC : Phoas.LogicComparison V}
+    (p : Phoas.prop V) : Prop :=
     match p with
     | Phoas.T _ => True
     | Phoas.F _ => False
     | Phoas.Implies l r => forall _: (semant l), (semant r)
     | Phoas.And l r => and (semant l) (semant r)
     | Phoas.Or l r => or (semant l) (semant r)
-    | Phoas.Forall f =>   forall v : PL.Value, (semant (f (PL.lit v)))
-    | Phoas.Cmp r a b => PL.cmp r a b
+    | Phoas.Forall f =>   forall v : PL.Value, (semant (f (Phoas.lit v)))
+    | Phoas.Exists f =>   exists v : PL.Value, (semant (f (Phoas.lit v)))
+    | Phoas.Cmp r a b => Phoas.cmp r a b
     end.
   
   
 
   
-    Fixpoint foas_to_phoas (V:Set) (VA: PL.LogicVariable V) (store : stringmap V) (foasprop : Foas.prop)  : prop V :=
+    Fixpoint foas_to_phoas (V:Set) (VA: Phoas.LogicVariable V) (store : stringmap V) (foasprop : Foas.prop)  : prop V :=
     match foasprop with
     |Foas.T => T V
     |Foas.F => F V
@@ -63,7 +132,9 @@ Inductive prop (A : Set) : Set :=
     |Foas.Or H1 H2=> Or (foas_to_phoas VA store H1) (foas_to_phoas VA store H2)
     |@Foas.Forall x body  => 
         Forall (fun arg => @foas_to_phoas V VA (insert x arg store) body)
-    |Foas.Cmp cmp l r => Cmp cmp (PL.interp_to_va_default VA store l) (PL.interp_to_va_default VA store r)
+    |@Foas.Exists x body  =>
+        Exists (fun arg => @foas_to_phoas V VA (insert x arg store) body)
+    |Foas.Cmp cmp l r => Cmp cmp (Phoas.interp_to_va_default VA store l) (Phoas.interp_to_va_default VA store r)
     end. 
      
      Check foas_to_phoas.
@@ -74,15 +145,12 @@ Inductive prop (A : Set) : Set :=
   Definition bind (A B:Set) (m : R A) (k : A->R B) : R B :=
      fun r => k (m r) r.
   
-  (* readers are compared by running them in the empty scope and comparing
-     the resulting expressions *)
-  #[global] Instance R_logicVariable : PL.LogicVariable (R PL.Exp) :=
+  #[global] Instance R_logicVariable : Phoas.LogicVariable (R PL.Exp) :=
     {
     lit i:= ret (PL.Lit i);
     add x y := bind x (fun v1 =>
               bind y (fun v2 =>
-              ret (PL.Add v1 v2)));
-    cmp r m1 m2 := PL.expLogicVariable.(PL.cmp) r (m1 ∅) (m2 ∅)
+              ret (PL.Add v1 v2)))
     }.
 
 
@@ -98,6 +166,11 @@ Inductive prop (A : Set) : Set :=
     | Phoas.Forall f =>
         let x := fresh_string_of_set "x" Γ in
         Foas.Forall x
+          (phoas_to_foas (union Γ (singleton x))
+             (f (ret (PL.Var x))))
+    | Phoas.Exists f =>
+        let x := fresh_string_of_set "x" Γ in
+        Foas.Exists x
           (phoas_to_foas (union Γ (singleton x))
              (f (ret (PL.Var x))))
     | Phoas.Cmp r a b => Foas.Cmp r (a Γ) (b Γ)
